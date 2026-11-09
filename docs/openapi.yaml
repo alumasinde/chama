@@ -3,9 +3,9 @@ info:
   title: Chama Ledger API
   version: 0.1.0
   description: >
-    Phase 1 slice: identity, OTP, 4-digit PIN with step-up tokens, password login and
-    rotating refresh tokens. Money endpoints arrive in later phases. Amounts are strings
-    with two decimals; timestamps are ISO-8601 UTC.
+    Implemented surface: identity and sessions (Phase 1), chamas, memberships, invites and
+    M-Pesa payment settings (Phase 2), and STK push, signed callbacks, idempotent settlement
+    and receipts (Phase 3). Amounts are strings with two decimals; timestamps are ISO-8601 UTC.
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -14,6 +14,8 @@ tags:
   - name: meta
   - name: auth
   - name: profile
+  - name: groups
+  - name: payments
 
 paths:
   /api/v1/meta:
@@ -394,6 +396,422 @@ paths:
         "204": { description: Revoked }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/v1/groups:
+    get:
+      tags: [groups]
+      summary: Chamas the caller belongs to
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Active and pending memberships
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Group" }
+    post:
+      tags: [groups]
+      summary: Create a chama (creator becomes admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, contribution_amount, contribution_frequency]
+              properties:
+                name: { type: string, maxLength: 120 }
+                description: { type: [string, "null"] }
+                contribution_amount: { type: string, example: "1500.00" }
+                contribution_frequency:
+                  type: string
+                  enum: [weekly, biweekly, monthly]
+                contribution_day: { type: integer, minimum: 1, maximum: 31 }
+                late_grace_days: { type: integer, minimum: 0, maximum: 30 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+        "400": { $ref: "#/components/responses/Validation" }
+
+  /api/v1/groups/join:
+    post:
+      tags: [groups]
+      summary: Join with an 8-character invite code
+      description: Creates a pending membership; admins approve before data is visible.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invite_code]
+              properties:
+                invite_code: { type: string, example: "Y27MEN2H" }
+      responses:
+        "200":
+          description: Joined or already a member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JoinResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/groups/{groupId}:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [groups]
+      summary: Chama detail for a member
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Chama with the caller's role
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [groups]
+      summary: Update the chama profile (admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: [string, "null"] }
+                contribution_amount: { type: string }
+                contribution_frequency: { type: string }
+                contribution_day: { type: integer }
+                late_grace_days: { type: integer }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/groups/{groupId}/members:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [groups]
+      summary: Members with roles and approval status
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Active members first, pending last
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Member" }
+        "403":
+          description: membership_pending for unapproved members
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /api/v1/groups/{groupId}/members/{userID}:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: userID
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [groups]
+      summary: Approve, suspend or promote a member (admin)
+      description: The last active admin cannot be demoted or removed.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { type: string, enum: [admin, treasurer, secretary, member] }
+                status: { type: string, enum: [active, pending, suspended, exited] }
+      responses:
+        "200":
+          description: Updated membership
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Member" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: last_admin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /api/v1/groups/{groupId}/invites/rotate:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [groups]
+      summary: Rotate the invite code (admin)
+      description: The previous code stops working immediately.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: New code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invite_code: { type: string, example: "Y27MEN2H" }
+
+  /api/v1/groups/{groupId}/payment-settings:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [groups, payments]
+      summary: Read the chama's own M-Pesa settings (admin/treasurer)
+      description: Secrets are always masked; the callback URL is never re-shown.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Masked settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentSettings" }
+    put:
+      tags: [groups, payments]
+      summary: Save the chama's own M-Pesa shortcode credentials (admin/treasurer)
+      description: >
+        Secrets are encrypted with AES-256-GCM before storage. Omitting a secret keeps the
+        stored value, so the form can be saved without re-entering keys.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shortcode_type, shortcode, daraja_environment]
+              properties:
+                shortcode_type: { type: string, enum: [paybill, till] }
+                shortcode: { type: string, example: "247247" }
+                account_reference_template: { type: string, example: "CHAMA-{member_short}" }
+                daraja_environment: { type: string, enum: [sandbox, production] }
+                consumer_key: { type: string, description: Write-only. }
+                consumer_secret: { type: string, description: Write-only. }
+                passkey: { type: string, description: Write-only. }
+      responses:
+        "200":
+          description: Saved; callback_url is returned only on this save
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentSettings" }
+        "400": { $ref: "#/components/responses/Validation" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/groups/{groupId}/payments/stk:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema: { type: string, minLength: 8, maxLength: 128 }
+        description: Replaying the same key and body returns the original 202 response.
+      - name: X-Step-Up-Token
+        in: header
+        required: true
+        schema: { type: string }
+        description: Minted by POST /auth/pin/verify; audience step_up, 5 minutes.
+    post:
+      tags: [payments]
+      summary: Prompt the member's phone with an M-Pesa STK push
+      description: >
+        The money moves on the chama's own shortcode; the platform only records it.
+        Amounts must be whole shillings because M-Pesa rejects decimals.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, purpose]
+              properties:
+                amount: { type: string, example: "1500.00" }
+                purpose:
+                  type: string
+                  enum: [contribution, fine, loan_repayment, welfare_contribution]
+                phone_number:
+                  type: string
+                  description: Defaults to the caller's verified phone.
+      responses:
+        "202":
+          description: STK accepted and a pending ledger row created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/STKResult" }
+        "400": { $ref: "#/components/responses/Validation" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: idempotency_conflict or request_in_progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "422":
+          description: amount_not_whole_shillings or payment_settings_missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "502":
+          description: provider_error from Daraja
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /api/v1/groups/{groupId}/transactions:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      - name: cursor
+        in: query
+        schema: { type: string }
+    get:
+      tags: [payments]
+      summary: Ledger entries, newest first
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Page of transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Transaction" }
+                  page:
+                    type: object
+                    properties:
+                      next_cursor: { type: [string, "null"] }
+                      has_more: { type: boolean }
+
+  /api/v1/groups/{groupId}/transactions/{txID}:
+    parameters:
+      - name: groupId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: txID
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [payments]
+      summary: Receipt detail for one ledger entry
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Transaction with M-Pesa receipt number when settled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Transaction" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/payments/mpesa/callback/{groupID}/{secret}:
+    parameters:
+      - name: groupID
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: secret
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [payments]
+      summary: Daraja STK callback
+      description: >
+        Authenticated by the unguessable per-group path secret compared in constant time.
+        Always answers 200 after persisting, including unknown checkout IDs; a wrong secret
+        answers 403 with an empty body. Duplicate callbacks settle at most once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                Body:
+                  type: object
+                  properties:
+                    stkCallback:
+                      type: object
+                      properties:
+                        MerchantRequestID: { type: string }
+                        CheckoutRequestID: { type: string }
+                        ResultCode: { type: integer }
+                        ResultDesc: { type: string }
+                        CallbackMetadata:
+                          type: object
+                          properties:
+                            Item:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  Name: { type: string }
+                                  Value: {}
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ResultCode: { type: integer, example: 0 }
+                  ResultDesc: { type: string, example: Accepted }
+        "403": { description: Wrong group or secret; empty body }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -438,6 +856,85 @@ components:
         biometric_enabled: { type: boolean }
         last_seen_at: { type: string, format: date-time }
 
+    Group:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        invite_code: { type: string }
+        currency: { type: string, example: KES }
+        contribution_amount: { type: string, example: "1500.00" }
+        contribution_frequency: { type: string, enum: [weekly, biweekly, monthly] }
+        contribution_day: { type: integer }
+        late_grace_days: { type: integer }
+        role: { type: string, enum: [admin, treasurer, secretary, member] }
+        status: { type: string, enum: [active, pending, suspended, exited] }
+        active_members: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    Member:
+      type: object
+      properties:
+        user_id: { type: string, format: uuid }
+        first_name: { type: string }
+        last_name: { type: string }
+        display_name: { type: string }
+        role: { type: string }
+        status: { type: string }
+        joined_at: { type: [string, "null"], format: date-time }
+
+    JoinResult:
+      type: object
+      properties:
+        group_id: { type: string, format: uuid }
+        group_name: { type: string }
+        status: { type: string, example: pending }
+        message: { type: string }
+
+    PaymentSettings:
+      type: object
+      properties:
+        configured: { type: boolean }
+        shortcode_type: { type: string, enum: [paybill, till] }
+        shortcode: { type: string }
+        account_reference_template: { type: string }
+        daraja_environment: { type: string, enum: [sandbox, production] }
+        consumer_key_masked: { type: string, example: "••••7890" }
+        consumer_secret_masked: { type: string, example: "••••7890" }
+        passkey_masked: { type: string, example: "••••7890" }
+        is_verified: { type: boolean }
+        verified_at: { type: [string, "null"], format: date-time }
+        updated_at: { type: [string, "null"], format: date-time }
+        callback_url:
+          type: string
+          description: Present only in the PUT response that saved the settings.
+
+    STKResult:
+      type: object
+      properties:
+        payment_request_id: { type: string, format: uuid }
+        checkout_request_id: { type: string, example: "ws_CO_19112026121234567" }
+        status: { type: string, example: pending }
+        amount: { type: string, example: "1500.00" }
+        purpose: { type: string }
+
+    Transaction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        member: { type: string }
+        type: { type: string, example: contribution }
+        status: { type: string, enum: [pending, completed, failed, reversed] }
+        channel: { type: [string, "null"], example: mpesa_stk }
+        amount: { type: string, example: "1500.00" }
+        reference_code: { type: [string, "null"], example: QK12345678 }
+        narration: { type: string }
+        period_label: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+
     ErrorEnvelope:
       type: object
       properties:
@@ -468,6 +965,11 @@ components:
           schema: { $ref: "#/components/schemas/ErrorEnvelope" }
     BusinessRule:
       description: Business rule rejected the request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Forbidden:
+      description: Missing permission, inactive membership or required step-up
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorEnvelope" }

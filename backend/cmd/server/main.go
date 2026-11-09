@@ -14,6 +14,7 @@ import (
 	"github.com/chama/chama/backend/internal/auth"
 	"github.com/chama/chama/backend/internal/config"
 	"github.com/chama/chama/backend/internal/groups"
+	"github.com/chama/chama/backend/internal/payments"
 	"github.com/chama/chama/backend/internal/platform/crypto"
 	"github.com/chama/chama/backend/internal/platform/db"
 	"github.com/chama/chama/backend/internal/platform/logger"
@@ -77,14 +78,26 @@ func run() error {
 	groupsSvc := groups.NewService(groups.NewRepository(pool), cipher, log,
 		groups.Options{PublicBaseURL: cfg.PublicBaseURL})
 
+	var paymentProvider payments.Provider = &payments.Mock{}
+	if cfg.PaymentsProvider == "daraja" {
+		daraja, err := payments.NewDaraja(cfg.DarajaBaseURL)
+		if err != nil {
+			return fmt.Errorf("payments: %w", err)
+		}
+		paymentProvider = daraja
+	}
+	paymentsSvc := payments.NewService(payments.NewRepository(pool), groupsSvc, paymentProvider, cfg.PublicBaseURL, log)
+
 	handler := routes.New(routes.Deps{
-		Config:        cfg,
-		Log:           log,
-		Pool:          pool,
-		Auth:          authSvc,
-		AuthHandler:   auth.NewHandler(authSvc, cfg.TrustProxy),
-		UsersHandler:  users.NewHandler(usersSvc),
-		GroupsHandler: groups.NewHandler(groupsSvc),
+		Config:          cfg,
+		Log:             log,
+		Pool:            pool,
+		Auth:            authSvc,
+		AuthHandler:     auth.NewHandler(authSvc, cfg.TrustProxy),
+		UsersHandler:    users.NewHandler(usersSvc),
+		Groups:          groupsSvc,
+		GroupsHandler:   groups.NewHandler(groupsSvc),
+		PaymentsHandler: payments.NewHandler(paymentsSvc),
 	})
 
 	srv := &http.Server{

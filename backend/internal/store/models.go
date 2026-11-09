@@ -136,6 +136,18 @@ type GuarantorStatus struct {
 	IsActive    bool
 }
 
+type IdempotencyKey struct {
+	UserID       int64
+	Key          string
+	Route        string
+	RequestHash  []byte
+	State        string
+	StatusCode   *int32
+	ResponseBody []byte
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
 type InterestMethod struct {
 	ID          int16
 	Code        string
@@ -211,6 +223,25 @@ type PaymentChannel struct {
 	IsActive    bool
 }
 
+type PaymentRequest struct {
+	ID                int64
+	PublicID          uuid.UUID
+	GroupID           int64
+	UserID            int64
+	PhoneNumber       string
+	Amount            pgtype.Numeric
+	PurposeTypeID     int16
+	CheckoutRequestID string
+	MerchantRequestID *string
+	StatusID          int16
+	ResultCode        *string
+	ResultDesc        *string
+	TransactionID     *int64
+	IdempotencyKey    *string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type PaymentShortcodeType struct {
 	ID          int16
 	Code        string
@@ -268,6 +299,25 @@ type RotationProposalStatus struct {
 	Description *string
 	SortOrder   int32
 	IsActive    bool
+}
+
+type Transaction struct {
+	ID                int64
+	PublicID          uuid.UUID
+	GroupID           int64
+	UserID            int64
+	TransactionTypeID int16
+	StatusID          int16
+	ChannelID         *int16
+	Amount            pgtype.Numeric
+	ReferenceCode     *string
+	IdempotencyKey    *string
+	PeriodLabel       *string
+	Narration         string
+	RawCallback       []byte
+	RecordedBy        *int64
+	CreatedAt         time.Time
+	CompletedAt       *time.Time
 }
 
 type TransactionStatus struct {

@@ -33,7 +33,9 @@ type Config struct {
 	PINMaxAttempts  int32
 	PINLockDuration time.Duration
 
-	SMSProvider string
+	SMSProvider      string
+	PaymentsProvider string
+	DarajaBaseURL    string
 }
 
 // Load reads env vars, applies development defaults, and refuses unsafe production settings.
@@ -54,6 +56,15 @@ func Load() (*Config, error) {
 		ShutdownTimeout: getduration("SHUTDOWN_TIMEOUT", 15*time.Second),
 		JWTSecret:       getenv("JWT_SECRET", ""),
 		SMSProvider:     getenv("SMS_PROVIDER", "console"),
+		DarajaBaseURL:   getenv("DARAJA_BASE_URL", "https://sandbox.safaricom.co.ke"),
+	}
+
+	cfg.PaymentsProvider = getenv("PAYMENTS_PROVIDER", "")
+	if cfg.PaymentsProvider == "" {
+		cfg.PaymentsProvider = "daraja"
+		if dev {
+			cfg.PaymentsProvider = "mock"
+		}
 	}
 
 	var errs []error
@@ -99,6 +110,12 @@ func Load() (*Config, error) {
 	}
 	if cfg.SMSProvider != "console" && cfg.SMSProvider != "mock" {
 		errs = append(errs, fmt.Errorf("SMS_PROVIDER %q is not supported yet", cfg.SMSProvider))
+	}
+	if cfg.PaymentsProvider != "daraja" && cfg.PaymentsProvider != "mock" {
+		errs = append(errs, fmt.Errorf("PAYMENTS_PROVIDER must be daraja or mock"))
+	}
+	if !dev && cfg.PaymentsProvider == "mock" {
+		errs = append(errs, errors.New("PAYMENTS_PROVIDER=mock is not allowed in production"))
 	}
 	if cfg.OTPMaxAttempts < 1 || cfg.PINMaxAttempts < 1 {
 		errs = append(errs, errors.New("OTP_MAX_ATTEMPTS and PIN_MAX_ATTEMPTS must be positive"))

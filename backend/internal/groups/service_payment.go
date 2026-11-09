@@ -136,6 +136,7 @@ func (s *Service) paymentView(groupID int64, settings PaymentSettings, callbackU
 		IsVerified:               settings.IsVerified,
 		VerifiedAt:               settings.VerifiedAt,
 		UpdatedAt:                &settings.UpdatedAt,
+		CallbackURL:              callbackURL,
 	}
 }
 

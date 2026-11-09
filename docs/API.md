@@ -1,5 +1,9 @@
 # API Surface — `/api/v1`
 
+Implemented today: §3 auth/profile, §4 groups/members/invites/payment settings, and the
+STK, callback and transaction-read parts of §5–§6. Later sections are the agreed contract
+for the phases that follow.
+
 REST, JSON, UTF-8. Same origin for web and mobile. `docs/openapi.yaml` is generated from this
 document and linted in CI.
 
@@ -107,9 +111,18 @@ record-keeper who is not a signatory.
 | GET · PUT | `/groups/{groupId}/loan-settings` | admin/treasurer |
 | GET · POST · PATCH | `/groups/{groupId}/fine-rules` | admin/treasurer |
 
-`GET payment-settings` returns `{shortcode_type, shortcode, account_reference_template,
-consumer_key_masked: "••••7f2a", is_verified, verified_at, updated_at}` — never a secret.
-`PUT` accepts plaintext creds over TLS and encrypts; omitting a field keeps the stored value.
+`GET payment-settings` returns `{configured, shortcode_type, shortcode,
+account_reference_template, daraja_environment, consumer_key_masked: "••••7f2a",
+consumer_secret_masked, passkey_masked, is_verified, verified_at, updated_at}` — never a secret.
+`PUT` accepts plaintext creds over TLS and encrypts them with AES-256-GCM (AAD binds the group
+and column); omitting a secret keeps the stored value. The `callback_url` (which embeds the
+unguessable group secret) appears only in the `PUT` response that first saves it.
+
+`POST /groups/join` returns `{group_id, group_name, status: "pending", message}` and is
+idempotent. Pending members get `403 membership_pending` from group-scoped reads. Member
+updates take `{role?, status?}` with role ∈ `admin|treasurer|secretary|member` and status ∈
+`active|pending|suspended|exited`; demoting or removing the last active admin returns
+`409 last_admin`. Rotating the invite returns `{invite_code}` and invalidates the old code.
 
 ---
 
@@ -117,6 +130,8 @@ consumer_key_masked: "••••7f2a", is_verified, verified_at, updated_at}` 
 
 | Method | Path | Role |
 |---|---|---|
+| GET | `/groups/{groupId}/transactions` | **implemented** — member, `?limit=1..100&cursor=`, newest first |
+| GET | `/groups/{groupId}/transactions/{txId}` | **implemented** — member, receipt detail |
 | GET | `/groups/{groupId}/contributions` | member (schedule with due/paid/overdue per member) |
 | GET | `/groups/{groupId}/contributions/summary` | member |
 | GET | `/groups/{groupId}/transactions` | member (filters: type, status, channel, user, from, to) |
@@ -142,11 +157,23 @@ narration}`. Rejection reasons are explicit (`amount_exceeds_expected`, `period_
 | POST | `/payments/mpesa/callback/{groupPublicId}/{callbackSecret}` | public, secret-authenticated |
 | POST | `/payments/mock/callback` | dev/test only (`PAYMENTS_PROVIDER=mock`, 404 in production) |
 
-STK body: `{amount, purpose, phone_number?}` where purpose ∈
-`contribution | fine | loan_repayment | welfare_contribution`. 202 response:
-`{payment_request_id, checkout_request_id, status: "pending", amount, purpose}`.
+STK is implemented. Body: `{amount, purpose, phone_number?}` where purpose ∈
+`contribution | fine | loan_repayment | welfare_contribution`. Requires both
+`X-Step-Up-Token` (403 `step_up_required` without it) and `Idempotency-Key` (8–128 chars;
+replaying the same key and body returns the original `202`, a different body returns
+`409 idempotency_conflict`, and an unfinished request returns `409 request_in_progress`).
+202 response: `{payment_request_id, checkout_request_id, status: "pending", amount, purpose}`.
+Amounts must be whole shillings (`422 amount_not_whole_shillings`); missing credentials return
+`422 payment_settings_missing`, and a Daraja rejection returns `502 provider_error`.
+
+STK uses the chama's own Till/Paybill and credentials, with account reference template
+tokens `{member_short}` and `{period}`. A pending ledger row and the payment request are
+written in one transaction, so a member sees the request immediately.
+
 Callback always replies `200 {"ResultCode":0,"ResultDesc":"Accepted"}` after persisting, even for
-unknown IDs (no information leak), with mismatched secret → `403` empty body.
+unknown IDs (no information leak), with mismatched group/secret → `403` empty body. The path
+secret is compared in constant time. Duplicate callbacks settle at most once (the second leaves
+the completed row untouched), and a failed result stores `status: failed`.
 
 ---
 

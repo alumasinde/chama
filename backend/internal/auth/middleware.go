@@ -45,6 +45,28 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// RequireStepUp enforces a fresh PIN-verified token minted for this user.
+func (s *Service) RequireStepUp(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, err := users.MustUser(r.Context())
+		if err != nil {
+			httpx.Fail(w, r, err)
+			return
+		}
+		raw := strings.TrimSpace(r.Header.Get("X-Step-Up-Token"))
+		if raw == "" {
+			httpx.Fail(w, r, httpx.StepUpRequired())
+			return
+		}
+		claims, err := s.tokens.Parse(raw, AudienceStepUp)
+		if err != nil || claims.Subject != user.PublicID.String() {
+			httpx.Fail(w, r, httpx.StepUpRequired())
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func bearerToken(r *http.Request) string {
 	header := r.Header.Get("Authorization")
 	prefix, value, found := strings.Cut(header, " ")

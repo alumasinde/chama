@@ -14,6 +14,7 @@ import (
 	"github.com/chama/chama/backend/internal/auth"
 	"github.com/chama/chama/backend/internal/config"
 	"github.com/chama/chama/backend/internal/groups"
+	"github.com/chama/chama/backend/internal/payments"
 	"github.com/chama/chama/backend/internal/platform/brand"
 	"github.com/chama/chama/backend/internal/platform/db"
 	"github.com/chama/chama/backend/internal/platform/httpx"
@@ -22,13 +23,15 @@ import (
 )
 
 type Deps struct {
-	Config        *config.Config
-	Log           *slog.Logger
-	Pool          *pgxpool.Pool
-	Auth          *auth.Service
-	AuthHandler   *auth.Handler
-	UsersHandler  *users.Handler
-	GroupsHandler *groups.Handler
+	Config          *config.Config
+	Log             *slog.Logger
+	Pool            *pgxpool.Pool
+	Auth            *auth.Service
+	AuthHandler     *auth.Handler
+	UsersHandler    *users.Handler
+	Groups          *groups.Service
+	GroupsHandler   *groups.Handler
+	PaymentsHandler *payments.Handler
 }
 
 func New(d Deps) http.Handler {
@@ -53,12 +56,14 @@ func New(d Deps) http.Handler {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/meta", metaHandler)
+		r.Post("/payments/mpesa/callback/{groupID}/{secret}", d.PaymentsHandler.Callback)
 		d.AuthHandler.PublicRoutes(r)
 		r.Group(func(r chi.Router) {
 			r.Use(d.Auth.Middleware)
 			d.AuthHandler.ProtectedRoutes(r)
 			d.UsersHandler.Register(r)
 			d.GroupsHandler.Register(r)
+			d.PaymentsHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp)
 		})
 	})
 

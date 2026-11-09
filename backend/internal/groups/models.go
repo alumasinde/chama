@@ -138,4 +138,5 @@ type PaymentSettingsView struct {
 	IsVerified               bool       `json:"is_verified"`
 	VerifiedAt               *time.Time `json:"verified_at"`
 	UpdatedAt                *time.Time `json:"updated_at"`
+	CallbackURL              string     `json:"callback_url,omitempty"`
 }

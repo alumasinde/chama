@@ -207,6 +207,17 @@ label {
   color: var(--warning);
 }
 
+.badge-completed {
+  background: var(--green-100);
+  color: var(--green-800);
+}
+
+.badge-failed,
+.badge-reversed {
+  background: var(--danger-50);
+  color: var(--danger);
+}
+
 .badge-exited,
 .badge-suspended {
   background: var(--danger-50);

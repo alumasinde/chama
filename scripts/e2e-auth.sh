@@ -91,7 +91,7 @@ status=$(curl -s -o "$TMP/body" -w '%{http_code}' "$BASE/healthz"); expect "$sta
 status=$(curl -s -o "$TMP/body" -w '%{http_code}' "$BASE/readyz"); expect "$status" 200 "readyz"
 
 status=$(curl -s -o "$TMP/body" -w '%{http_code}' "$BASE/"); expect "$status" 200 "SPA fallback serves index"
-grep -q "dashboard" "$TMP/body" && echo "PASS  index.html content" || { echo "FAIL  index.html content"; fails=$((fails + 1)); }
+grep -q 'id="app"' "$TMP/body" && echo "PASS  index.html content" || { echo "FAIL  index.html content"; fails=$((fails + 1)); }
 
 status=$(call GET /does-not-exist); expect "$status" 404 "unknown API path is JSON 404"
 expect "$(body | jget error.code)" "not_found" "error envelope shape"
