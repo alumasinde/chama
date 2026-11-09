@@ -1,0 +1,30 @@
+version: "2"
+sql:
+  - schema:
+      - migrations/0001_lookups.up.sql
+      - migrations/0002_lookups_extended.up.sql
+      - migrations/0003_users_auth.up.sql
+      - migrations/0004_groups_members.up.sql
+      - migrations/0005_payment_settings.up.sql
+    queries: queries
+    engine: postgresql
+    gen:
+      go:
+        package: store
+        out: internal/store
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        emit_prepared_queries: false
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: timestamptz
+            go_type:
+              import: time
+              type: Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true

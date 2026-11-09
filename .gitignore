@@ -1,0 +1,28 @@
+# Build artifacts
+bin/
+backend/internal/web/dist/*
+!backend/internal/web/dist/.gitkeep
+!backend/internal/web/dist/index.html
+
+# Local verification database and tool binaries
+.localdb/
+.tools/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+web/.svelte-kit/
+web/build/
+
+# Flutter
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins*
+
+# Reports and local data
+reports/
+*.log

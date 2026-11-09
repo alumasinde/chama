@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS report_job_statuses;
+DROP TABLE IF EXISTS otp_purposes;
+DROP TABLE IF EXISTS notification_types;
+DROP TABLE IF EXISTS rotation_cycle_statuses;
+DROP TABLE IF EXISTS welfare_claim_statuses;
+DROP TABLE IF EXISTS interest_methods;
+DROP TABLE IF EXISTS fine_calculation_methods;
+DROP TABLE IF EXISTS fine_types;
+DROP TABLE IF EXISTS guarantor_statuses;
+DROP TABLE IF EXISTS loan_statuses;
+DROP TABLE IF EXISTS payment_shortcode_types;
+DROP TABLE IF EXISTS payment_channels;
+DROP TABLE IF EXISTS transaction_statuses;
+DROP TABLE IF EXISTS transaction_types;
+DROP TABLE IF EXISTS contribution_frequencies;
+DROP TABLE IF EXISTS member_statuses;
+DROP TABLE IF EXISTS member_roles;

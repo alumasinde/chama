@@ -1,0 +1,21 @@
+# Local Postgres for development. Host port 5434 avoids a system Postgres.
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: chama-db
+    environment:
+      POSTGRES_USER: chama
+      POSTGRES_PASSWORD: chama
+      POSTGRES_DB: chama
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chama -d chama"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - chama-db:/var/lib/postgresql/data
+
+volumes:
+  chama-db:
