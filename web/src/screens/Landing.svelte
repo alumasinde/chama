@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import { session } from '../lib/session.svelte';
   import './landing.css';
@@ -8,10 +9,97 @@
   const appHref = '/app#/overview';
   const startHref = $derived(signedIn ? appHref : '/login');
   const startLabel = $derived(signedIn ? 'Open dashboard' : 'Start your chama');
+  const sections = [
+    { id: 'ledger', label: 'Why a ledger' },
+    { id: 'inside', label: "What's inside" },
+    { id: 'how', label: 'How it works' },
+    { id: 'committee', label: 'For committees' },
+  ];
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canObserve = 'IntersectionObserver' in window;
+  let motion = $state(!reduceMotion && canObserve);
+  let scrolled = $state(false);
+  let menuOpen = $state(false);
+  let activeSection = $state('');
+  let scrollProgress = $state(0);
+  let scrollFrame = 0;
+  let revealObserver: IntersectionObserver | null = null;
+
+  function closeMenu() {
+    menuOpen = false;
+  }
+
+  function syncScroll() {
+    const y = window.scrollY;
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    scrolled = y > 18;
+    scrollProgress = max > 0 ? Math.min(1, Math.max(0, y / max)) : 0;
+
+    if (menuOpen) menuOpen = false;
+
+    let current = '';
+    for (const section of sections) {
+      const element = document.getElementById(section.id);
+      if (element && element.getBoundingClientRect().top <= window.innerHeight * 0.4) {
+        current = section.id;
+      }
+    }
+    activeSection = current;
+  }
+
+  function scheduleScrollSync() {
+    if (scrollFrame) return;
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      syncScroll();
+    });
+  }
+
+  onMount(() => {
+    syncScroll();
+
+    const revealTargets = document.querySelectorAll<HTMLElement>('[data-reveal], [data-reveal-stagger]');
+    if (motion) {
+      revealObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            entry.target.classList.add('is-visible');
+            revealObserver?.unobserve(entry.target);
+          }
+        },
+        { threshold: 0.08, rootMargin: '0px 0px -8% 0px' },
+      );
+      revealTargets.forEach((target) => revealObserver?.observe(target));
+    } else {
+      revealTargets.forEach((target) => target.classList.add('is-visible'));
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu();
+    };
+
+    window.addEventListener('scroll', scheduleScrollSync, { passive: true });
+    window.addEventListener('resize', scheduleScrollSync);
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('scroll', scheduleScrollSync);
+      window.removeEventListener('resize', scheduleScrollSync);
+      window.removeEventListener('keydown', onKeyDown);
+      revealObserver?.disconnect();
+      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+    };
+  });
 </script>
 
-<div class="mkt">
-  <header class="mkt-nav">
+<div class="mkt" class:mkt-motion={motion} id="top">
+  <header class="mkt-nav" class:is-scrolled={scrolled} class:menu-open={menuOpen}>
+    <div class="mkt-progress" aria-hidden="true">
+      <i style={`transform: scaleX(${scrollProgress})`}></i>
+    </div>
+
     <div class="mkt-wrap mkt-nav-inner">
       <a class="mkt-brand" href="/" aria-label="{session.appName} home">
         <span class="mkt-brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -22,27 +110,82 @@
       </a>
 
       <nav class="mkt-nav-links" aria-label="About the product">
-        <a href="#ledger">Why a ledger</a>
-        <a href="#inside">What's inside</a>
-        <a href="#how">How it works</a>
-        <a href="#committee">For committees</a>
+        {#each sections as section (section.id)}
+          <a
+            href={`#${section.id}`}
+            class:active={activeSection === section.id}
+            aria-current={activeSection === section.id ? 'location' : undefined}
+          >{section.label}</a>
+        {/each}
       </nav>
 
       <div class="mkt-nav-actions">
-        {#if signedIn}
-          <a class="mkt-nav-signin" href={appHref}>Open dashboard</a>
-        {:else}
+        {#if !signedIn}
           <a class="mkt-nav-signin" href="/login">Sign in</a>
-          <a class="mkt-button mkt-button-lime mkt-button-small" href={startHref}>
-            Start your chama
-            <Icon name="arrow" size={15} />
-          </a>
         {/if}
+        <button
+          class="mkt-menu-button"
+          type="button"
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-controls="mkt-mobile-menu"
+          aria-expanded={menuOpen}
+          onclick={() => (menuOpen = !menuOpen)}
+        >
+          <Icon name={menuOpen ? 'close' : 'menu'} size={20} />
+        </button>
+        <a class="mkt-button mkt-button-lime mkt-button-small" href={startHref}>
+          {startLabel}
+          <Icon name="arrow" size={15} />
+        </a>
+      </div>
+    </div>
+
+    <div
+      id="mkt-mobile-menu"
+      class="mkt-mobile-menu"
+      class:open={menuOpen}
+      aria-hidden={!menuOpen}
+      inert={!menuOpen}
+    >
+      <div class="mkt-wrap mkt-mobile-menu-inner">
+        <nav aria-label="Mobile product navigation">
+          {#each sections as section (section.id)}
+            <a
+              href={`#${section.id}`}
+              class:active={activeSection === section.id}
+              aria-current={activeSection === section.id ? 'location' : undefined}
+              onclick={closeMenu}
+            >{section.label}</a>
+          {/each}
+        </nav>
+        <div class="mkt-mobile-menu-foot">
+          <a class="mkt-button mkt-button-lime" href={startHref} onclick={closeMenu}>
+            {startLabel}
+            <Icon name="arrow" size={17} />
+          </a>
+          {#if !signedIn}
+            <a class="mkt-mobile-signin" href="/login" onclick={closeMenu}>
+              Already have an account? <strong>Sign in</strong>
+            </a>
+          {/if}
+        </div>
+        <p class="mkt-mobile-note">Records only. Money moves on your chama's M-Pesa shortcode.</p>
       </div>
     </div>
   </header>
 
-  <main>
+  <button
+    class="mkt-menu-scrim"
+    class:open={menuOpen}
+    type="button"
+    aria-label="Close menu"
+    tabindex={menuOpen ? 0 : -1}
+    onclick={closeMenu}
+  ></button>
+
+  <a class="mkt-skip" href="#main-content">Skip to content</a>
+
+  <main id="main-content">
     <section class="mkt-hero" aria-labelledby="mkt-hero-title">
       <div class="mkt-wrap mkt-hero-grid">
         <div class="mkt-hero-copy">
@@ -143,7 +286,7 @@
 
     <section class="mkt-section mkt-why" id="ledger">
       <div class="mkt-wrap">
-        <div class="mkt-section-head">
+        <div class="mkt-section-head" data-reveal>
           <div>
             <p class="mkt-kicker">Why a ledger</p>
             <h2>A chama runs on trust. Trust runs on a record.</h2>
@@ -154,7 +297,7 @@
           </p>
         </div>
 
-        <div class="mkt-problems">
+        <div class="mkt-problems" data-reveal-stagger>
           <article>
             <h3>The chat scrolls. The record stays.</h3>
             <p>Every contribution is tied to a member, a date and an M-Pesa reference, so nobody has to reconstruct last month from a screenshot.</p>
@@ -173,7 +316,7 @@
 
     <section class="mkt-section mkt-inside" id="inside">
       <div class="mkt-wrap">
-        <div class="mkt-section-head">
+        <div class="mkt-section-head" data-reveal>
           <div>
             <p class="mkt-kicker">One shared record</p>
             <h2>Everything the committee carries, in one place.</h2>
@@ -182,7 +325,7 @@
         </div>
 
         <div class="mkt-inside-grid">
-          <article class="mkt-feature">
+          <article class="mkt-feature" data-reveal>
             <div class="mkt-feature-top">
               <span class="mkt-feature-icon"><Icon name="transactions" size={21} /></span>
               <span class="mkt-feature-tag">The monthly run</span>
@@ -201,7 +344,7 @@
             </div>
           </article>
 
-          <div class="mkt-modules">
+          <div class="mkt-modules" data-reveal-stagger>
             <article>
               <span class="mkt-module-icon"><Icon name="loans" size={19} /></span>
               <div><h3>Loans and guarantors</h3><p>Applications, approvals, guarantors and repayments in one timeline.</p></div>
@@ -233,7 +376,7 @@
 
     <section class="mkt-section mkt-how" id="how">
       <div class="mkt-wrap">
-        <div class="mkt-section-head mkt-section-head-dark">
+        <div class="mkt-section-head mkt-section-head-dark" data-reveal>
           <div>
             <p class="mkt-kicker">From first meeting to first report</p>
             <h2>Set up the record in three moves.</h2>
@@ -241,7 +384,7 @@
           <p>No new wallet. No member balances moved. Start with the chama you already have.</p>
         </div>
 
-        <div class="mkt-steps">
+        <div class="mkt-steps" data-reveal-stagger>
           <article>
             <span class="mkt-step-label">First</span>
             <h3>Create the chama</h3>
@@ -263,7 +406,7 @@
 
     <section class="mkt-section mkt-committee" id="committee">
       <div class="mkt-wrap mkt-committee-grid">
-        <div class="mkt-committee-copy">
+        <div class="mkt-committee-copy" data-reveal>
           <p class="mkt-kicker">For the committee</p>
           <h2>Authority is clear. So is the record.</h2>
           <p>
@@ -273,7 +416,7 @@
           <a class="mkt-text-link" href={startHref}>Set up your committee <Icon name="arrow" size={15} /></a>
         </div>
 
-        <div class="mkt-role-list">
+        <div class="mkt-role-list" data-reveal-stagger>
           <article>
             <span class="mkt-role-tag">Admins</span>
             <div><h3>Guard the membership and the big decisions.</h3><p>Approve new members, loans, welfare claims and payouts. Sensitive entries can require a PIN.</p></div>
@@ -292,7 +435,7 @@
 
     <section class="mkt-section mkt-safety">
       <div class="mkt-wrap mkt-safety-grid">
-        <div class="mkt-safety-copy">
+        <div class="mkt-safety-copy" data-reveal>
           <p class="mkt-kicker">The important boundary</p>
           <h2>Your money never passes through us.</h2>
           <p>
@@ -300,7 +443,7 @@
             Paybill or Till. We do not hold, move or lend member funds.
           </p>
         </div>
-        <div class="mkt-safety-points">
+        <div class="mkt-safety-points" data-reveal-stagger>
           <article><h3>The shortcode stays yours</h3><p>Members pay the chama the way they already do. The platform records what happened.</p></article>
           <article><h3>Approvals stay human</h3><p>The committee makes the decision. The ledger keeps the trail and the reason.</p></article>
           <article><h3>Records leave with you</h3><p>Download the transactions, reports and audit history whenever the chama needs them.</p></article>
@@ -310,7 +453,7 @@
     </section>
 
     <section class="mkt-cta">
-      <div class="mkt-wrap mkt-cta-inner">
+      <div class="mkt-wrap mkt-cta-inner" data-reveal>
         <div>
           <p class="mkt-kicker">Start with the record</p>
           <h2>Give the chama something better than a scroll-back.</h2>
@@ -342,6 +485,7 @@
     <div class="mkt-wrap mkt-footer-bottom">
       <span>© {new Date().getFullYear()} {session.appName}</span>
       <span>Records only. No wallet. No custody.</span>
+      <a class="mkt-back-top" href="#top">Back to top <span aria-hidden="true">↑</span></a>
     </div>
   </footer>
 </div>

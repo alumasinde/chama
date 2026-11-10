@@ -1,6 +1,7 @@
 /* Public marketing surface. The app shell keeps the existing product tokens. */
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 96px;
 }
 
 .mkt {
@@ -67,10 +68,40 @@ html {
 }
 
 .mkt-nav {
-  position: absolute;
+  position: fixed;
   inset: 0 0 auto;
-  z-index: 5;
+  z-index: 50;
   color: var(--mkt-paper);
+  border-bottom: 1px solid transparent;
+  transition: background-color 240ms ease, border-color 240ms ease, box-shadow 240ms ease;
+}
+
+.mkt-nav.is-scrolled,
+.mkt-nav.menu-open {
+  background: rgba(17, 11, 27, 0.92);
+  border-bottom-color: rgba(245, 241, 231, 0.1);
+  box-shadow: 0 10px 34px rgba(17, 11, 27, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.mkt-progress {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mkt-progress i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--mkt-lime);
+  transform: scaleX(0);
+  transform-origin: left;
+  will-change: transform;
 }
 
 .mkt-nav-inner {
@@ -79,6 +110,52 @@ html {
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
+  transition: min-height 240ms ease;
+}
+
+.mkt-nav.is-scrolled .mkt-nav-inner {
+  min-height: 68px;
+}
+
+.mkt-menu-button {
+  display: none;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(245, 241, 231, 0.2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--mkt-paper);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.mkt-menu-button:hover {
+  background: rgba(245, 241, 231, 0.08);
+  border-color: rgba(245, 241, 231, 0.42);
+}
+
+.mkt-menu-scrim {
+  display: none;
+}
+
+.mkt-skip {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 60;
+  padding: 0.65rem 0.9rem;
+  color: var(--mkt-ink) !important;
+  background: var(--mkt-lime);
+  border-radius: 3px;
+  font-size: 0.78rem;
+  font-weight: 720;
+  transform: translate(-50%, -180%);
+  transition: transform 160ms ease;
+}
+
+.mkt-skip:focus-visible {
+  outline-color: var(--mkt-paper);
+  transform: translate(-50%, 0);
 }
 
 .mkt-brand {
@@ -176,8 +253,13 @@ a.mkt-nav-signin {
   color: var(--mkt-paper);
 }
 
-.mkt-nav-links a:hover::after {
+.mkt-nav-links a:hover::after,
+.mkt-nav-links a.active::after {
   transform: scaleX(1);
+}
+
+.mkt-nav-links a.active {
+  color: var(--mkt-paper);
 }
 
 .mkt-nav-actions {
@@ -369,6 +451,7 @@ a.mkt-nav-signin {
 
 .mkt-sheet {
   position: relative;
+  transition: transform 500ms cubic-bezier(0.22, 0.8, 0.28, 1);
   z-index: 1;
   padding: 1.55rem 1.55rem 1.15rem;
   color: var(--mkt-ink);
@@ -608,6 +691,65 @@ a.mkt-nav-signin {
   background: var(--mkt-green);
 }
 
+@media (hover: hover) {
+  .mkt-sheet:hover {
+    transform: rotate(0) translateY(-3px);
+  }
+}
+
+.mkt-motion .mkt-entries li {
+  animation: mkt-entry-in 520ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
+}
+
+.mkt-motion .mkt-entries li:nth-child(1) { animation-delay: 330ms; }
+.mkt-motion .mkt-entries li:nth-child(2) { animation-delay: 390ms; }
+.mkt-motion .mkt-entries li:nth-child(3) { animation-delay: 450ms; }
+.mkt-motion .mkt-entries li:nth-child(4) { animation-delay: 510ms; }
+
+@keyframes mkt-entry-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.mkt-motion [data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 760ms cubic-bezier(0.22, 0.8, 0.28, 1),
+    transform 760ms cubic-bezier(0.22, 0.8, 0.28, 1);
+  will-change: opacity, transform;
+}
+
+.mkt-motion [data-reveal].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mkt-motion [data-reveal-stagger] > * {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 620ms cubic-bezier(0.22, 0.8, 0.28, 1),
+    transform 620ms cubic-bezier(0.22, 0.8, 0.28, 1);
+}
+
+.mkt-motion [data-reveal-stagger].is-visible > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mkt-motion [data-reveal-stagger].is-visible > *:nth-child(2) { transition-delay: 75ms; }
+.mkt-motion [data-reveal-stagger].is-visible > *:nth-child(3) { transition-delay: 150ms; }
+.mkt-motion [data-reveal-stagger].is-visible > *:nth-child(4) { transition-delay: 225ms; }
+.mkt-motion [data-reveal-stagger].is-visible > *:nth-child(5) { transition-delay: 300ms; }
+.mkt-motion [data-reveal-stagger].is-visible > *:nth-child(6) { transition-delay: 375ms; }
+
 .mkt-payout-note {
   position: absolute;
   right: -1.5rem;
@@ -678,7 +820,6 @@ a.mkt-nav-signin {
 
 .mkt-section {
   padding: clamp(4.5rem, 8vw, 7rem) 0;
-  scroll-margin-top: 1rem;
 }
 
 .mkt-section-head {
@@ -1214,6 +1355,95 @@ a.mkt-nav-signin {
   font-size: 0.66rem;
 }
 
+.mkt-back-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgba(245, 241, 231, 0.55);
+}
+
+.mkt-back-top:hover {
+  color: var(--mkt-lime);
+}
+
+.mkt-mobile-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  max-height: calc(100vh - 74px);
+  overflow-y: auto;
+  background: #1a1028;
+  border-bottom: 1px solid rgba(245, 241, 231, 0.12);
+  box-shadow: 0 28px 48px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: opacity 180ms ease, visibility 180ms ease, transform 220ms cubic-bezier(0.22, 0.8, 0.28, 1);
+}
+
+.mkt-mobile-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.mkt-mobile-menu-inner {
+  padding-top: 0.45rem;
+  padding-bottom: 1.15rem;
+}
+
+.mkt-mobile-menu nav {
+  display: grid;
+}
+
+.mkt-mobile-menu nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(245, 241, 231, 0.1);
+  color: rgba(245, 241, 231, 0.68);
+  font-size: 0.94rem;
+  font-weight: 560;
+  transition: color 160ms ease, padding-left 160ms ease;
+}
+
+.mkt-mobile-menu nav a:hover,
+.mkt-mobile-menu nav a.active {
+  padding-left: 0.35rem;
+  color: var(--mkt-lime);
+}
+
+.mkt-mobile-menu-foot {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-top: 1.1rem;
+}
+
+.mkt-mobile-menu-foot .mkt-button {
+  width: 100%;
+}
+
+.mkt-mobile-signin {
+  color: rgba(245, 241, 231, 0.56) !important;
+  font-size: 0.76rem;
+}
+
+.mkt-mobile-signin strong {
+  color: var(--mkt-lime);
+  font-weight: 650;
+}
+
+.mkt-mobile-note {
+  margin-top: 0.9rem;
+  color: rgba(245, 241, 231, 0.34);
+  font-size: 0.64rem;
+}
+
 @media (max-width: 1050px) {
   .mkt-nav-links {
     gap: 1.1rem;
@@ -1234,8 +1464,34 @@ a.mkt-nav-signin {
 }
 
 @media (max-width: 900px) {
-  .mkt-nav-links {
+  .mkt-nav-links,
+  .mkt-nav-signin {
     display: none;
+  }
+
+  .mkt-menu-button {
+    display: grid;
+  }
+
+  .mkt-mobile-menu {
+    display: block;
+  }
+
+  .mkt-menu-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border: 0;
+    background: rgba(17, 11, 27, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 180ms ease, visibility 180ms ease;
+  }
+
+  .mkt-menu-scrim.open {
+    opacity: 1;
+    visibility: visible;
   }
 
   .mkt-hero {
@@ -1284,11 +1540,16 @@ a.mkt-nav-signin {
 }
 
 @media (max-width: 720px) {
+  html {
+    scroll-padding-top: 80px;
+  }
+
   .mkt-wrap {
     width: min(100% - 32px, 1180px);
   }
 
-  .mkt-nav-inner {
+  .mkt-nav-inner,
+  .mkt-nav.is-scrolled .mkt-nav-inner {
     min-height: 74px;
   }
 
@@ -1533,7 +1794,7 @@ a.mkt-nav-signin {
   }
 }
 
-@media (max-width: 340px) {
+@media (max-width: 360px) {
   .mkt-brand-copy {
     display: none;
   }
@@ -1552,13 +1813,31 @@ a.mkt-nav-signin {
     scroll-behavior: auto;
   }
 
-  .mkt-hero-stage {
+  .mkt-hero-stage,
+  .mkt-motion .mkt-entries li {
     animation: none;
+  }
+
+  .mkt-motion [data-reveal],
+  .mkt-motion [data-reveal-stagger] > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 
   .mkt-button,
   .mkt-button .icon,
-  .mkt-nav-links a::after {
+  .mkt-nav-links a::after,
+  .mkt-menu-button,
+  .mkt-menu-scrim,
+  .mkt-mobile-menu,
+  .mkt-mobile-menu nav a {
+    transition: none;
+  }
+
+  .mkt-nav,
+  .mkt-nav-inner,
+  .mkt-sheet {
     transition: none;
   }
 }
