@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS fines;
+DROP TABLE IF EXISTS fine_rules;

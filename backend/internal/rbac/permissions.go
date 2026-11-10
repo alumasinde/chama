@@ -9,6 +9,16 @@ const (
 	PermInviteRotate         = "invite.rotate"
 	PermPaymentSettingsRead  = "payment_settings.read"
 	PermPaymentSettingsWrite = "payment_settings.write"
+	PermLoanSettingsWrite    = "loan_settings.write"
+	PermLoanApply            = "loan.apply"
+	PermLoanManage           = "loan.manage"
+	PermLoanDisburse         = "loan.disburse"
+	PermLoanRepay            = "loan.repay"
+	PermFineRulesWrite       = "fine_rules.write"
+	PermFineManage           = "fine.manage"
+	PermFinePay              = "fine.pay"
+	PermFineWaive            = "fine.waive"
+	PermFineEvaluate         = "fine.evaluate"
 )
 
 var roleCapabilities = map[string]map[string]bool{
@@ -16,16 +26,25 @@ var roleCapabilities = map[string]map[string]bool{
 		PermGroupRead: true, PermGroupUpdate: true, PermMemberRead: true,
 		PermMemberManage: true, PermInviteRotate: true,
 		PermPaymentSettingsRead: true, PermPaymentSettingsWrite: true,
+		PermLoanSettingsWrite: true, PermLoanApply: true, PermLoanManage: true,
+		PermLoanDisburse: true, PermLoanRepay: true,
+		PermFineRulesWrite: true, PermFineManage: true, PermFinePay: true,
+		PermFineWaive: true, PermFineEvaluate: true,
 	},
 	"treasurer": {
 		PermGroupRead: true, PermMemberRead: true,
 		PermPaymentSettingsRead: true, PermPaymentSettingsWrite: true,
+		PermLoanSettingsWrite: true, PermLoanApply: true, PermLoanManage: true,
+		PermLoanDisburse: true, PermLoanRepay: true,
+		PermFineRulesWrite: true, PermFineManage: true, PermFinePay: true,
+		PermFineWaive: true, PermFineEvaluate: true,
 	},
 	"secretary": {
 		PermGroupRead: true, PermMemberRead: true,
+		PermLoanApply: true, PermFineEvaluate: true,
 	},
 	"member": {
-		PermGroupRead: true, PermMemberRead: true,
+		PermGroupRead: true, PermMemberRead: true, PermLoanApply: true,
 	},
 }
 

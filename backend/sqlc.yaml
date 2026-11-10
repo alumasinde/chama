@@ -7,6 +7,8 @@ sql:
       - migrations/0004_groups_members.up.sql
       - migrations/0005_payment_settings.up.sql
       - migrations/0006_ledger.up.sql
+      - migrations/0008_loans.up.sql
+      - migrations/0009_fines.up.sql
     queries: queries
     engine: postgresql
     gen:

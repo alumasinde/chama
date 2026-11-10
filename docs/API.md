@@ -181,19 +181,46 @@ the completed row untouched), and a failed result stores `status: failed`.
 
 | Method | Path | Role |
 |---|---|---|
-| POST | `/groups/{groupId}/loans` | member (idempotent, step-up) |
-| GET | `/groups/{groupId}/loans` | member (filters: status, user, overdue) |
-| GET | `/groups/{groupId}/loans/{loanId}` | member |
-| POST | `/groups/{groupId}/loans/{loanId}/guarantors` | member (borrower invites) |
-| POST | `/groups/{groupId}/loans/{loanId}/guarantors/respond` | member (`{decision: accepted|declined}`) |
-| POST | `/groups/{groupId}/loans/{loanId}/decision` | admin/treasurer (`{decision, comment}`, idempotent) |
-| POST | `/groups/{groupId}/loans/{loanId}/disburse` | treasurer (idempotent, step-up, audited) |
-| POST | `/groups/{groupId}/loans/{loanId}/repayments` | treasurer (idempotent, step-up) |
-| GET | `/groups/{groupId}/loans/{loanId}/schedule` | member |
-| GET | `/me/loans` · `/me/guarantor-requests` | auth |
+| GET | `/groups/{groupId}/loans/settings` | member |
+| PUT | `/groups/{groupId}/loans/settings` | admin/treasurer |
+| POST | `/groups/{groupId}/loans` | member (step-up) |
+| GET | `/groups/{groupId}/loans` | member (own) / admin/treasurer (all); `?status=` |
+| GET | `/groups/{groupId}/loans/{loanId}` | member (own) / admin/treasurer |
+| GET | `/groups/{groupId}/loans/{loanId}/schedule` | member (own) / admin/treasurer |
+| POST | `/groups/{groupId}/loans/{loanId}/guarantors/respond` | invited guarantor (`{decision: accepted|declined}`) |
+| POST | `/groups/{groupId}/loans/{loanId}/decision` | admin/treasurer (`{decision, comment}`) |
+| POST | `/groups/{groupId}/loans/{loanId}/disburse` | treasurer (step-up) |
+| POST | `/groups/{groupId}/loans/{loanId}/repayments` | treasurer (step-up) |
+| POST | `/groups/{groupId}/loans/defaults/run` | admin/treasurer |
+
+Application body: `{amount, term_months, purpose, guarantors: [{user_id, amount}]}`. The
+engine enforces `allow_loans`, the savings multiple, the maximum term and the exact guarantor
+count. Each guarantee is checked against that member's savings minus guarantees on live loans
+(`422 guarantor_cover_exceeded`). Applications start in `pending_guarantors`, or
+`pending_approval` when the policy requires no guarantors.
+
+When every guarantor has responded, the loan moves to `pending_approval` if enough accepted,
+otherwise it is rejected automatically. `decision` answers `409 loan_not_pending_approval`
+while guarantors are still pending (or the loan is no longer awaiting a decision), and
+`422 guarantors_pending` / `422 guarantors_missing` if the tally is short.
+
+Approval persists the amortization schedule: flat interest spreads `P × monthly_rate × n`;
+reducing balance uses `EMI = P·i / (1 − (1+i)^−n)` with interest recomputed on the opening
+balance. Rounding is half-up per installment and the final row absorbs the remainder, so
+`Σ principal_due = principal` and `Σ interest_due = total_interest` exactly. Schedules are
+never recomputed on read.
+
+Disbursement and repayment are manual records only (no B2C). Both require a fresh step-up
+token, create a completed ledger row (`loan_disbursement` or `loan_repayment`) and are guarded
+by the expected loan status. Repayments allocate oldest-first across unpaid installments; an
+amount above the outstanding balance returns `422 repayment_exceeds_balance`. The nightly
+default scan (03:00 EAT) marks an active loan `defaulted` when an installment is unpaid for
+30+ days; the same scan is available on demand.
 
 Loan detail includes `status`, `principal`, `interest_rate`, `interest_method`, `term_months`,
-`total_payable`, `paid_to_date`, `arrears`, `guarantors[]`, `approvals[]`, `next_due`.
+`total_interest`, `total_payable`, `paid_to_date`, `outstanding`, `guarantors[]` and
+`approvals[]`; the schedule endpoint returns `installment_no`, `due_date`, `principal_due`,
+`interest_due`, `paid_amount`, `total_due` and `paid_at`.
 
 ---
 
@@ -201,11 +228,14 @@ Loan detail includes `status`, `principal`, `interest_rate`, `interest_method`, 
 
 | Method | Path | Role |
 |---|---|---|
-| GET | `/groups/{groupId}/fines` | member |
+| GET | `/groups/{groupId}/fines/rules` | member |
+| PUT | `/groups/{groupId}/fines/rules/{fineType}` | admin/treasurer |
+| GET | `/groups/{groupId}/fines` | member (own) / admin/treasurer (all); `?status=` |
 | POST | `/groups/{groupId}/fines` | admin/treasurer (custom fine) |
+| GET | `/groups/{groupId}/fines/{fineId}` | member (own) / admin/treasurer |
 | POST | `/groups/{groupId}/fines/{fineId}/waive` | admin/treasurer (reason required) |
-| POST | `/groups/{groupId}/fines/{fineId}/pay` | treasurer (manual) |
-| GET | `/me/fines` | auth |
+| POST | `/groups/{groupId}/fines/{fineId}/pay` | treasurer (manual, step-up) |
+| POST | `/groups/{groupId}/fines/evaluate` | admin/treasurer |
 | GET · PUT | `/groups/{groupId}/welfare` | member · admin/treasurer |
 | GET | `/groups/{groupId}/welfare/contributions` | member |
 | GET · POST | `/groups/{groupId}/welfare/claims` | member |
@@ -219,6 +249,18 @@ Loan detail includes `status`, `principal`, `interest_rate`, `interest_method`, 
 | POST | `/groups/{groupId}/rotation/proposals/{proposalId}/vote` | member (`{choice}`, upsert while open) |
 | POST | `/groups/{groupId}/rotation/cycles/{cycleId}/payouts` | treasurer (idempotent, step-up) |
 | GET | `/me/rotation` | auth (my position and payout date) |
+
+Fine rules use `{calculation_method, amount_or_rate, grace_days}` for types
+`late_contribution`, `late_loan_repayment`, `absence` and `custom`; a percentage cannot exceed
+100. Custom fines are always `custom` with no rule, and require `{user_id, amount, reason}`.
+
+Evaluation covers the last completed period for the chama's cadence (weekly, biweekly,
+monthly or quarterly) and charges active members with no completed contribution in it. The
+nightly job runs at 02:00 EAT and writes nothing for a period until its grace window has
+passed. It is idempotent per `(group, member, rule, period)`, so a second run creates zero
+rows. Waiving requires a reason and only works on an unpaid fine (`409 fine_not_unpaid`).
+Manual payment must be for the full fine amount and writes a completed `fine` ledger row in
+the same transaction as the status change.
 
 ---
 

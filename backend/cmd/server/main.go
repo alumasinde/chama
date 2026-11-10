@@ -13,11 +13,14 @@ import (
 
 	"github.com/chama/chama/backend/internal/auth"
 	"github.com/chama/chama/backend/internal/config"
+	"github.com/chama/chama/backend/internal/fines"
 	"github.com/chama/chama/backend/internal/groups"
+	"github.com/chama/chama/backend/internal/loans"
 	"github.com/chama/chama/backend/internal/payments"
 	"github.com/chama/chama/backend/internal/platform/crypto"
 	"github.com/chama/chama/backend/internal/platform/db"
 	"github.com/chama/chama/backend/internal/platform/logger"
+	"github.com/chama/chama/backend/internal/platform/scheduler"
 	"github.com/chama/chama/backend/internal/routes"
 	"github.com/chama/chama/backend/internal/users"
 )
@@ -87,6 +90,27 @@ func run() error {
 		paymentProvider = daraja
 	}
 	paymentsSvc := payments.NewService(payments.NewRepository(pool), groupsSvc, paymentProvider, cfg.PublicBaseURL, log)
+	finesSvc := fines.NewService(fines.NewRepository(pool), log)
+	loansSvc := loans.NewService(loans.NewRepository(pool), log)
+
+	eat := time.FixedZone("EAT", 3*60*60)
+	if loc, locErr := time.LoadLocation("Africa/Nairobi"); locErr == nil {
+		eat = loc
+	}
+	scheduler.Daily(ctx, log, "fines.evaluate", 2, 0, eat, func(ctx context.Context) error {
+		result, err := finesSvc.EvaluateAll(ctx)
+		if err == nil {
+			log.InfoContext(ctx, "fines evaluated", "groups", result.Groups, "created", result.Created)
+		}
+		return err
+	})
+	scheduler.Daily(ctx, log, "loans.defaults", 3, 0, eat, func(ctx context.Context) error {
+		marked, err := loansSvc.DefaultsAll(ctx)
+		if err == nil {
+			log.InfoContext(ctx, "loan default scan", "marked", marked)
+		}
+		return err
+	})
 
 	handler := routes.New(routes.Deps{
 		Config:          cfg,
@@ -98,6 +122,8 @@ func run() error {
 		Groups:          groupsSvc,
 		GroupsHandler:   groups.NewHandler(groupsSvc),
 		PaymentsHandler: payments.NewHandler(paymentsSvc),
+		FinesHandler:    fines.NewHandler(finesSvc),
+		LoansHandler:    loans.NewHandler(loansSvc),
 	})
 
 	srv := &http.Server{

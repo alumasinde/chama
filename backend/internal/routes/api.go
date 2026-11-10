@@ -13,7 +13,9 @@ import (
 
 	"github.com/chama/chama/backend/internal/auth"
 	"github.com/chama/chama/backend/internal/config"
+	"github.com/chama/chama/backend/internal/fines"
 	"github.com/chama/chama/backend/internal/groups"
+	"github.com/chama/chama/backend/internal/loans"
 	"github.com/chama/chama/backend/internal/payments"
 	"github.com/chama/chama/backend/internal/platform/brand"
 	"github.com/chama/chama/backend/internal/platform/db"
@@ -32,6 +34,8 @@ type Deps struct {
 	Groups          *groups.Service
 	GroupsHandler   *groups.Handler
 	PaymentsHandler *payments.Handler
+	FinesHandler    *fines.Handler
+	LoansHandler    *loans.Handler
 }
 
 func New(d Deps) http.Handler {
@@ -64,6 +68,8 @@ func New(d Deps) http.Handler {
 			d.UsersHandler.Register(r)
 			d.GroupsHandler.Register(r)
 			d.PaymentsHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp)
+			d.FinesHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp, d.Groups.RequirePermission)
+			d.LoansHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp, d.Groups.RequirePermission)
 		})
 	})
 

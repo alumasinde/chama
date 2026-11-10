@@ -55,6 +55,24 @@ type DevicePlatform struct {
 	IsActive    bool
 }
 
+type Fine struct {
+	ID                   int64
+	PublicID             uuid.UUID
+	GroupID              int64
+	UserID               int64
+	FineRuleID           *int64
+	FineTypeID           int16
+	Amount               pgtype.Numeric
+	Reason               string
+	StatusID             int16
+	PeriodLabel          *string
+	AssessedOn           pgtype.Date
+	WaivedBy             *int64
+	WaiveReason          *string
+	PaymentTransactionID *int64
+	CreatedAt            time.Time
+}
+
 type FineCalculationMethod struct {
 	ID          int16
 	Code        string
@@ -62,6 +80,17 @@ type FineCalculationMethod struct {
 	Description *string
 	SortOrder   int32
 	IsActive    bool
+}
+
+type FineRule struct {
+	ID                  int64
+	GroupID             int64
+	FineTypeID          int16
+	CalculationMethodID int16
+	AmountOrRate        pgtype.Numeric
+	GraceDays           int16
+	IsActive            bool
+	UpdatedAt           time.Time
 }
 
 type FineStatus struct {
@@ -96,6 +125,17 @@ type Group struct {
 	CreatedBy               int64
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
+}
+
+type GroupLoanSetting struct {
+	GroupID              int64
+	InterestRate         pgtype.Numeric
+	InterestMethodID     int16
+	MaxMultipleOfSavings pgtype.Numeric
+	MaxTermMonths        int16
+	GuarantorsRequired   int16
+	AllowLoans           bool
+	UpdatedAt            time.Time
 }
 
 type GroupMember struct {
@@ -155,6 +195,60 @@ type InterestMethod struct {
 	Description *string
 	SortOrder   int32
 	IsActive    bool
+}
+
+type Loan struct {
+	ID                        int64
+	PublicID                  uuid.UUID
+	GroupID                   int64
+	UserID                    int64
+	Principal                 pgtype.Numeric
+	InterestRate              pgtype.Numeric
+	InterestMethodID          int16
+	TermMonths                int16
+	StatusID                  int16
+	TotalInterest             pgtype.Numeric
+	TotalPayable              pgtype.Numeric
+	Purpose                   string
+	RequestedAt               time.Time
+	ApprovedAt                *time.Time
+	DisbursedAt               *time.Time
+	DisbursementTransactionID *int64
+	CreatedBy                 int64
+	UpdatedAt                 time.Time
+}
+
+type LoanApproval struct {
+	ID         int64
+	GroupID    int64
+	LoanID     int64
+	ApproverID int64
+	DecisionID int16
+	Comment    *string
+	CreatedAt  time.Time
+}
+
+type LoanGuarantor struct {
+	ID               int64
+	GroupID          int64
+	LoanID           int64
+	GuarantorUserID  int64
+	AmountGuaranteed pgtype.Numeric
+	StatusID         int16
+	RespondedAt      *time.Time
+	CreatedAt        time.Time
+}
+
+type LoanScheduleItem struct {
+	ID            int64
+	GroupID       int64
+	LoanID        int64
+	InstallmentNo int16
+	DueDate       pgtype.Date
+	PrincipalDue  pgtype.Numeric
+	InterestDue   pgtype.Numeric
+	PaidAmount    pgtype.Numeric
+	PaidAt        *time.Time
 }
 
 type LoanStatus struct {
