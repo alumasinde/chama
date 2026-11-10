@@ -326,7 +326,7 @@ SPA handler: static file if it exists, `/assets/*` immutable 1-year cache, other
 `branding.json` at repo root is the single source:
 
 ```json
-{ "appName": "Chama Ledger", "primaryColor": "#0B6E4F", "accentColor": "#D9A227", "currency": "KES", "locale": "en", "supportEmail": "support@example.co.ke" }
+{ "appName": "Chama Ledger", "primaryColor": "#5B2BB5", "accentColor": "#16A34A", "currency": "KES", "locale": "en", "supportEmail": "support@example.co.ke" }
 ```
 
 Change `appName`, run `make build` (or `make brand`), and three artefacts regenerate:

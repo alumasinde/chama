@@ -4,8 +4,8 @@ package brand
 const (
 	AppName      = "Chama Ledger"
 	ShortName    = "Chama"
-	PrimaryColor = "#0B6E4F"
-	AccentColor  = "#D9A227"
+	PrimaryColor = "#5B2BB5"
+	AccentColor  = "#16A34A"
 	Currency     = "KES"
 	Locale       = "en"
 	SupportEmail = "support@example.co.ke"

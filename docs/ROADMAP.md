@@ -82,7 +82,7 @@ installments allocates correctly; fine job run twice yields one row.
 ## Phase 5 — Welfare, rotation + voting, notifications
 
 **Files:** `internal/{welfare,rotation,notifications}/*` (`voting.go`, `push.go`,
-`push_fcm.go`, `push_console.go`), `migrations/0011…0013`, related queries.
+`push_fcm.go`), `migrations/0010…0012`, related queries.
 
 **Delivers:** welfare fund, contributions, claims lifecycle with payouts; rotation cycles with
 random (verifiable seed) / manual / vote ordering, proposals, one-vote-per-member with change,

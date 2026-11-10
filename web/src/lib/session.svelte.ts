@@ -10,6 +10,7 @@ export const session = $state({
   access: null as string | null,
   refreshToken: null as string | null,
   groups: [] as Group[],
+  pendingGroups: [] as Group[],
   activeGroupId: null as string | null,
 });
 
@@ -68,6 +69,7 @@ export function signOut(remote = true) {
   session.access = null;
   session.refreshToken = null;
   session.groups = [];
+  session.pendingGroups = [];
   session.activeGroupId = null;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
@@ -95,9 +97,11 @@ export async function refresh(): Promise<boolean> {
 export async function loadGroups(): Promise<void> {
   if (!session.access) return;
   const result = await api<{ data: Group[] }>('/groups', { auth: session.access });
-  session.groups = result.data;
-  if (!session.activeGroupId || !result.data.some((group) => group.id === session.activeGroupId)) {
-    session.activeGroupId = result.data[0]?.id ?? null;
+  const active = result.data.filter((group) => group.status === 'active');
+  session.pendingGroups = result.data.filter((group) => group.status === 'pending');
+  session.groups = active;
+  if (!session.activeGroupId || !active.some((group) => group.id === session.activeGroupId)) {
+    session.activeGroupId = active[0]?.id ?? null;
   }
 }
 

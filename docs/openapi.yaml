@@ -3,10 +3,11 @@ info:
   title: Chama Ledger API
   version: 0.1.0
   description: >
-    Implemented surface: identity and sessions (Phase 1), chamas, memberships, invites and
-    M-Pesa payment settings (Phase 2), STK push, signed callbacks, idempotent settlement and
-    receipts (Phase 3), and fines plus the full manual loan lifecycle (Phase 4). Amounts are
-    strings with two decimals; timestamps are ISO-8601 UTC.
+    Implemented surface through Phase 6: identity and sessions, chamas, memberships, invites,
+    M-Pesa payment settings, STK push and settlement, the manual loan lifecycle, fines, welfare,
+    rotation and voting, notifications, reports/exports, and the audit trail. Billing and the
+    platform console remain the Phase 8 contract. Amounts are strings with two decimals;
+    timestamps are ISO-8601 UTC.
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -19,6 +20,11 @@ tags:
   - name: payments
   - name: loans
   - name: fines
+  - name: welfare
+  - name: rotation
+  - name: reports
+  - name: audit
+  - name: notifications
 
 paths:
   /api/v1/meta:
@@ -1371,6 +1377,607 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/BusinessRule" }
 
+  /api/v1/invites/{code}:
+    get:
+      tags: [groups]
+      summary: Public invite preview
+      description: Resolves a rotating invite code without requiring a session. Invalid codes return the same generic 404.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string, example: Y27MEN2H }
+      responses:
+        "200":
+          description: Public chama details for the invite
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitePreview" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/groups/{groupId}/welfare:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [welfare]
+      summary: Read the welfare fund
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Current fund, or configured false before setup
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WelfareFund" }
+    put:
+      tags: [welfare]
+      summary: Create or update the welfare fund (admin/treasurer)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WelfareFundInput" }
+      responses:
+        "200":
+          description: Saved fund
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WelfareFund" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/welfare/contributions:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [welfare]
+      summary: List welfare contributions (member sees own; committee sees all)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: Welfare contribution rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/WelfareContribution" }
+    post:
+      tags: [welfare]
+      summary: Record a manual welfare contribution (admin/treasurer, step-up)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: X-Step-Up-Token, in: header, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WelfareContributionInput" }
+      responses:
+        "201":
+          description: Created contribution
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WelfareContribution" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/welfare/claims:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [welfare]
+      summary: List welfare claims (member sees own; committee sees all)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, approved, rejected, paid] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: Welfare claim rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/WelfareClaim" }
+    post:
+      tags: [welfare]
+      summary: Request welfare support
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WelfareClaimInput" }
+      responses:
+        "201":
+          description: Created pending claim
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WelfareClaim" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/welfare/claims/{claimID}:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: claimID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [welfare]
+      summary: Read a welfare claim
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Welfare claim
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WelfareClaim" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/groups/{groupId}/welfare/claims/{claimID}/decision:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: claimID, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [welfare]
+      summary: Approve or reject a welfare claim (admin/treasurer)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WelfareClaimDecisionInput" }
+      responses:
+        "200":
+          description: Decided claim
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WelfareClaim" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/v1/groups/{groupId}/welfare/claims/{claimID}/payout:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: claimID, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [welfare]
+      summary: Record an approved claim payout (treasurer, step-up, idempotent)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: X-Step-Up-Token, in: header, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WelfareClaimPayoutInput" }
+      responses:
+        "201":
+          description: Paid claim and ledger transaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WelfarePayoutResult" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/rotation/cycles:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [rotation]
+      summary: List rotation cycles
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: Rotation cycles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/RotationCycle" }
+    post:
+      tags: [rotation]
+      summary: Create a rotation cycle (admin/treasurer)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RotationCreateInput" }
+      responses:
+        "201":
+          description: Draft cycle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationCycle" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/rotation/cycles/{cycleID}:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: cycleID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [rotation]
+      summary: Read a rotation cycle and its slots
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Rotation cycle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationCycle" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/groups/{groupId}/rotation/cycles/{cycleID}/start:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: cycleID, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [rotation]
+      summary: Start a draft cycle and materialise its queue (admin/treasurer)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Active cycle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationCycle" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/rotation/cycles/{cycleID}/proposals:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: cycleID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [rotation]
+      summary: List proposals for a cycle
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: Proposal summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/RotationProposalSummary" }
+    post:
+      tags: [rotation]
+      summary: Open an order proposal for a vote (admin/treasurer)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RotationProposalInput" }
+      responses:
+        "201":
+          description: Open proposal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationProposal" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/rotation/cycles/{cycleID}/payouts:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: cycleID, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [rotation]
+      summary: Record the next rotation payout (treasurer, step-up, idempotent)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: X-Step-Up-Token, in: header, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RotationPayoutInput" }
+      responses:
+        "201":
+          description: Recorded payout
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationPayoutResult" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/rotation/proposals/{proposalID}:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: proposalID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [rotation]
+      summary: Read a proposal, tally and the caller's vote
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Proposal detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationProposal" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/groups/{groupId}/rotation/proposals/{proposalID}/vote:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: proposalID, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [rotation]
+      summary: Cast or change a vote while the proposal is open
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RotationVoteInput" }
+      responses:
+        "200":
+          description: Proposal with updated tally
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationProposal" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/v1/groups/{groupId}/rotation/proposals/{proposalID}/close:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: proposalID, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [rotation]
+      summary: Close a proposal now (admin/treasurer)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Closed proposal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RotationProposal" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/v1/me/rotation:
+    get:
+      tags: [rotation]
+      summary: The caller's rotation positions across groups
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: Member rotation rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/MyRotation" }
+
+  /api/v1/groups/{groupId}/reports/dashboard:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [reports]
+      summary: Dashboard KPIs, period and cash-flow series
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Dashboard report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDashboard" }
+
+  /api/v1/groups/{groupId}/reports/loan-book:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [reports]
+      summary: Loan book (admin/treasurer/secretary)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Loan book rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/LoanBookRow" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/groups/{groupId}/reports/defaulters:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [reports]
+      summary: Overdue loan board (admin/treasurer/secretary)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Defaulter rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/DefaulterRow" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/groups/{groupId}/reports/fines:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [reports]
+      summary: Fines report (admin/treasurer/secretary)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Fine rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ReportFineRow" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/groups/{groupId}/reports/jobs:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [reports]
+      summary: List report export jobs
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+      responses:
+        "200":
+          description: Export jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ReportJob" }
+    post:
+      tags: [reports]
+      summary: Create a CSV or PDF export job
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportJobInput" }
+      responses:
+        "201":
+          description: Queued export job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportJob" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/BusinessRule" }
+
+  /api/v1/groups/{groupId}/reports/jobs/{jobID}/download:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: jobID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [reports]
+      summary: Download a completed export
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: CSV or PDF bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/groups/{groupId}/audit-logs:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [audit]
+      summary: Read the group audit trail (admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: action, in: query, schema: { type: string } }
+        - { name: entity_type, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
+      responses:
+        "200":
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditEntry" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/groups/{groupId}/audit-logs/{auditID}:
+    parameters:
+      - { name: groupId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: auditID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [audit]
+      summary: Read one audit entry with before and after values
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Audit entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditEntry" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/notifications:
+    get:
+      tags: [notifications]
+      summary: List the caller's in-app notifications
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: unread, in: query, schema: { type: boolean, default: false } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200":
+          description: Notifications and unread count
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationList" }
+
+  /api/v1/notifications/read:
+    post:
+      tags: [notifications]
+      summary: Mark notifications read
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationReadInput" }
+      responses:
+        "200":
+          description: Number of rows marked read
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationReadResult" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1586,6 +2193,384 @@ components:
         waive_reason: { type: [string, "null"] }
         paid: { type: boolean }
         created_at: { type: string, format: date-time }
+
+    InvitePreview:
+      type: object
+      properties:
+        group_name: { type: string }
+        admin_first_name: { type: string }
+        active_members: { type: integer }
+        currency: { type: string, example: KES }
+        contribution_amount: { type: string, example: "1500.00" }
+        contribution_frequency: { type: string, enum: [weekly, biweekly, monthly, quarterly] }
+
+    WelfareFund:
+      type: object
+      properties:
+        configured: { type: boolean }
+        name: { type: string }
+        monthly_amount: { type: string }
+        is_active: { type: boolean }
+        balance: { type: string }
+        contributed_total: { type: string }
+        paid_out_total: { type: string }
+        updated_at: { type: [string, "null"], format: date-time }
+
+    WelfareFundInput:
+      type: object
+      required: [name, monthly_amount]
+      properties:
+        name: { type: string }
+        monthly_amount: { type: string, example: "500.00" }
+        is_active: { type: boolean }
+
+    WelfareContribution:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        member: { type: string }
+        amount: { type: string }
+        period_label: { type: string }
+        transaction_id: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+
+    WelfareContributionInput:
+      type: object
+      required: [user_id, amount, channel]
+      properties:
+        user_id: { type: string, format: uuid }
+        amount: { type: string, example: "500.00" }
+        period_label: { type: [string, "null"], example: "2026-11" }
+        channel: { type: string, enum: [mpesa_manual, cash, bank_transfer, other] }
+        reference: { type: [string, "null"] }
+
+    WelfareClaim:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        member: { type: string }
+        amount: { type: string }
+        reason: { type: string }
+        status: { type: string, enum: [pending, approved, rejected, paid] }
+        requested_at: { type: string, format: date-time }
+        decided_at: { type: [string, "null"], format: date-time }
+        decided_by: { type: [string, "null"] }
+        comment: { type: [string, "null"] }
+        payout_transaction_id: { type: [string, "null"], format: uuid }
+
+    WelfareClaimInput:
+      type: object
+      required: [amount, reason]
+      properties:
+        amount: { type: string, example: "500.00" }
+        reason: { type: string }
+
+    WelfareClaimDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approved, rejected] }
+        comment: { type: [string, "null"] }
+
+    WelfareClaimPayoutInput:
+      type: object
+      required: [channel]
+      properties:
+        channel: { type: string, enum: [mpesa_manual, cash, bank_transfer, other] }
+        reference: { type: [string, "null"] }
+
+    WelfarePayoutResult:
+      type: object
+      properties:
+        claim: { $ref: "#/components/schemas/WelfareClaim" }
+        transaction_id: { type: string, format: uuid }
+
+    RotationSlot:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        member: { type: string }
+        position: { type: integer }
+        payout_date: { type: string, format: date }
+        payout_transaction_id: { type: [string, "null"], format: uuid }
+        paid: { type: boolean }
+
+    RotationCycle:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [draft, active, completed] }
+        ordering_mode: { type: string, enum: [random, manual, vote] }
+        contribution_amount: { type: string }
+        starts_on: { type: string, format: date }
+        member_count: { type: integer }
+        draw_seed: { type: [string, "null"] }
+        slot_count: { type: integer }
+        paid_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+        slots:
+          type: array
+          items: { $ref: "#/components/schemas/RotationSlot" }
+
+    RotationCreateInput:
+      type: object
+      required: [name, ordering_mode, contribution_amount, starts_on]
+      properties:
+        name: { type: string }
+        ordering_mode: { type: string, enum: [random, manual, vote] }
+        contribution_amount: { type: string, example: "1500.00" }
+        starts_on: { type: string, format: date }
+        slots:
+          type: array
+          items: { type: string, format: uuid }
+
+    RotationTally:
+      type: object
+      properties:
+        for: { type: integer }
+        against: { type: integer }
+        abstain: { type: integer }
+        total: { type: integer }
+        eligible: { type: integer }
+        needed: { type: integer }
+
+    RotationVote:
+      type: object
+      properties:
+        choice: { type: string, enum: [for, against, abstain] }
+        cast_at: { type: string, format: date-time }
+
+    RotationProposal:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        cycle_id: { type: string, format: uuid }
+        status: { type: string, enum: [open, passed, failed, expired] }
+        proposed_by: { type: string }
+        quorum_percent: { type: integer }
+        opens_at: { type: string, format: date-time }
+        closes_at: { type: string, format: date-time }
+        closed_at: { type: [string, "null"], format: date-time }
+        result: { oneOf: [{ $ref: "#/components/schemas/RotationTally" }, { type: "null" }] }
+        tally: { $ref: "#/components/schemas/RotationTally" }
+        my_vote: { oneOf: [{ $ref: "#/components/schemas/RotationVote" }, { type: "null" }] }
+        slots:
+          type: array
+          items: { $ref: "#/components/schemas/RotationSlot" }
+
+    RotationProposalSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string }
+        quorum_percent: { type: integer }
+        eligible_members: { type: integer }
+        for: { type: integer }
+        against: { type: integer }
+        abstain: { type: integer }
+        total: { type: integer }
+        needed: { type: integer }
+        opens_at: { type: string, format: date-time }
+        closes_at: { type: string, format: date-time }
+        closed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    RotationProposalInput:
+      type: object
+      required: [slots, closes_at]
+      properties:
+        slots:
+          type: array
+          items: { type: string, format: uuid }
+        closes_at: { type: string, format: date-time }
+        quorum_percent: { type: integer, minimum: 1, maximum: 100, default: 60 }
+
+    RotationVoteInput:
+      type: object
+      required: [choice]
+      properties:
+        choice: { type: string, enum: [for, against, abstain] }
+
+    RotationPayoutInput:
+      type: object
+      required: [slot_id, channel]
+      properties:
+        slot_id: { type: string, format: uuid }
+        channel: { type: string, enum: [mpesa_manual, cash, bank_transfer, other] }
+        reference: { type: [string, "null"] }
+
+    RotationPayoutResult:
+      type: object
+      properties:
+        cycle_id: { type: string, format: uuid }
+        slot_id: { type: string, format: uuid }
+        transaction_id: { type: string, format: uuid }
+        next_slot_id: { type: string, format: uuid }
+
+    MyRotation:
+      type: object
+      properties:
+        group_id: { type: string, format: uuid }
+        group_name: { type: string }
+        cycle_id: { type: string, format: uuid }
+        cycle_name: { type: string }
+        position: { type: integer }
+        payout_date: { type: string, format: date }
+        paid: { type: boolean }
+
+    ReportGroupSummary:
+      type: object
+      properties:
+        name: { type: string }
+        currency: { type: string }
+        contribution_amount: { type: string }
+        contribution_frequency: { type: string }
+
+    ReportPeriod:
+      type: object
+      properties:
+        label: { type: string }
+        start: { type: string, format: date }
+        end: { type: string, format: date }
+
+    ReportKPIs:
+      type: object
+      properties:
+        collected: { type: string }
+        outstanding_loans: { type: string }
+        unpaid_fines: { type: string }
+        savings: { type: string }
+        welfare_balance: { type: string }
+        active_members: { type: integer }
+        pending_loans: { type: integer }
+
+    ReportCashflowPoint:
+      type: object
+      properties:
+        bucket: { type: string }
+        inflow: { type: string }
+        outflow: { type: string }
+
+    ReportDashboard:
+      type: object
+      properties:
+        group: { $ref: "#/components/schemas/ReportGroupSummary" }
+        period: { $ref: "#/components/schemas/ReportPeriod" }
+        kpis: { $ref: "#/components/schemas/ReportKPIs" }
+        cashflow:
+          type: array
+          items: { $ref: "#/components/schemas/ReportCashflowPoint" }
+
+    LoanBookRow:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        borrower: { type: string }
+        status: { type: string }
+        principal: { type: string }
+        total_payable: { type: string }
+        paid: { type: string }
+        outstanding: { type: string }
+        requested_at: { type: string }
+        next_due: { type: string }
+
+    DefaulterRow:
+      type: object
+      properties:
+        loan_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        borrower: { type: string }
+        status: { type: string }
+        oldest_due: { type: string }
+        amount_due: { type: string }
+        days_overdue: { type: integer }
+
+    ReportFineRow:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        member: { type: string }
+        fine_type: { type: string }
+        amount: { type: string }
+        status: { type: string }
+        period_label: { type: string }
+        assessed_on: { type: string }
+        reason: { type: string }
+
+    ReportJob:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        report_code: { type: string }
+        format: { type: string, enum: [csv, pdf] }
+        status: { type: string }
+        file_name: { type: string }
+        content_type: { type: string }
+        row_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        error: { type: string }
+
+    ReportJobInput:
+      type: object
+      required: [report_code, format]
+      properties:
+        report_code: { type: string }
+        format: { type: string, enum: [csv, pdf] }
+        params:
+          type: object
+          additionalProperties: true
+
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        actor: { type: string }
+        action: { type: string }
+        entity_type: { type: string }
+        entity_public_id: { type: [string, "null"], format: uuid }
+        before: { type: [object, "null"], additionalProperties: true }
+        after: { type: [object, "null"], additionalProperties: true }
+        created_at: { type: string, format: date-time }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        data: { type: object, additionalProperties: true }
+        read_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    NotificationList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Notification" }
+        unread_count: { type: integer }
+
+    NotificationReadInput:
+      type: object
+      properties:
+        ids:
+          type: array
+          items: { type: string, format: uuid }
+        all: { type: boolean }
+
+    NotificationReadResult:
+      type: object
+      properties:
+        marked_read: { type: integer }
 
     ErrorEnvelope:
       type: object

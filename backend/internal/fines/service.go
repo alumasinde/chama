@@ -10,19 +10,23 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/chama/chama/backend/internal/notifications"
 	"github.com/chama/chama/backend/internal/platform/httpx"
 	"github.com/chama/chama/backend/internal/platform/money"
 	store "github.com/chama/chama/backend/internal/store"
 )
 
 type Service struct {
-	repo *Repository
-	log  *slog.Logger
+	repo     *Repository
+	log      *slog.Logger
+	notifier notifications.Notifier
 }
 
 func NewService(repo *Repository, log *slog.Logger) *Service {
 	return &Service{repo: repo, log: log}
 }
+
+func (s *Service) SetNotifier(n notifications.Notifier) { s.notifier = n }
 
 func (s *Service) Rules(ctx context.Context, groupID int64) ([]RuleView, error) {
 	rows, err := s.repo.Rules(ctx, groupID)
@@ -93,6 +97,7 @@ func (s *Service) Create(ctx context.Context, groupID int64, in CreateInput) (Fi
 	if err != nil {
 		return FineView{}, err
 	}
+	s.notifyFine(ctx, groupID, member.ID, row.PublicID, int64(amount), reason)
 	return s.Get(ctx, groupID, row.PublicID, member.ID, true)
 }
 
@@ -200,7 +205,19 @@ func (s *Service) EvaluateGroup(ctx context.Context, groupID int64) (int64, erro
 		return 0, err
 	}
 	period := PreviousPeriod(time.Now(), group.Frequency)
-	return s.repo.Evaluate(ctx, groupID, period)
+	return s.evaluate(ctx, groupID, period)
+}
+
+func (s *Service) evaluate(ctx context.Context, groupID int64, period Period) (int64, error) {
+	rows, err := s.repo.Evaluate(ctx, groupID, period)
+	if err != nil {
+		return 0, err
+	}
+	for _, row := range rows {
+		s.notifyFine(ctx, groupID, row.UserID, row.PublicID, row.AmountCents,
+			"Contribution not recorded for "+period.Label)
+	}
+	return int64(len(rows)), nil
 }
 
 // EvaluateAll is the nightly entry point; the unique fine key makes reruns safe.
@@ -212,13 +229,25 @@ func (s *Service) EvaluateAll(ctx context.Context) (EvaluationResult, error) {
 	out := EvaluationResult{Groups: len(groups)}
 	for _, group := range groups {
 		period := PreviousPeriod(time.Now(), group.Frequency)
-		created, err := s.repo.Evaluate(ctx, group.ID, period)
+		created, err := s.evaluate(ctx, group.ID, period)
 		if err != nil {
 			return out, err
 		}
 		out.Created += created
 	}
 	return out, nil
+}
+
+func (s *Service) notifyFine(ctx context.Context, groupID, userID int64, publicID uuid.UUID, amountCents int64, reason string) {
+	if s.notifier == nil {
+		return
+	}
+	_ = s.notifier.Notify(ctx, notifications.Event{
+		UserID: userID, GroupID: &groupID, Type: "fine_applied",
+		Title: "Fine applied", Body: money.Cents(amountCents).String() + " - " + reason,
+		Data:      map[string]any{"fine_id": publicID.String()},
+		DedupeKey: "fine:" + publicID.String(),
+	})
 }
 
 func detailView(row store.GetFineByPublicIDRow) FineView {

@@ -160,7 +160,7 @@ func (r *Repository) Groups(ctx context.Context) ([]store.ListFineGroupsRow, err
 	return r.q.ListFineGroups(ctx)
 }
 
-func (r *Repository) Evaluate(ctx context.Context, groupID int64, p Period) (int64, error) {
+func (r *Repository) Evaluate(ctx context.Context, groupID int64, p Period) ([]store.CreateEvaluatedFinesRow, error) {
 	label := p.Label
 	return r.q.CreateEvaluatedFines(ctx, store.CreateEvaluatedFinesParams{
 		PeriodLabel: &label, GroupID: groupID, PeriodEnd: p.End, PeriodStart: p.Start,

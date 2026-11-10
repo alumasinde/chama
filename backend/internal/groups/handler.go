@@ -102,6 +102,15 @@ func (h *Handler) join(w http.ResponseWriter, r *http.Request) {
 	httpx.Respond(w, http.StatusOK, result)
 }
 
+func (h *Handler) InvitePreview(w http.ResponseWriter, r *http.Request) {
+	preview, err := h.svc.InvitePreview(r.Context(), chi.URLParam(r, "code"))
+	if err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	httpx.Respond(w, http.StatusOK, preview)
+}
+
 func (h *Handler) members(w http.ResponseWriter, r *http.Request) {
 	scope, ok := ScopeFrom(r.Context())
 	if !ok {

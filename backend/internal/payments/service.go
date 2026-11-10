@@ -22,16 +22,20 @@ import (
 )
 
 type Service struct {
-	repo     *Repository
-	groups   *groups.Service
-	provider Provider
-	baseURL  string
-	log      *slog.Logger
+	repo      *Repository
+	groups    *groups.Service
+	provider  Provider
+	baseURL   string
+	log       *slog.Logger
+	onSettled func(context.Context, SettledEvent)
 }
 
 func NewService(repo *Repository, groupsSvc *groups.Service, provider Provider, baseURL string, log *slog.Logger) *Service {
 	return &Service{repo: repo, groups: groupsSvc, provider: provider, baseURL: strings.TrimRight(baseURL, "/"), log: log}
 }
+
+// OnSettled installs the post-callback hook used for welfare records and notifications.
+func (s *Service) OnSettled(fn func(context.Context, SettledEvent)) { s.onSettled = fn }
 
 type STKInput struct {
 	Amount      string  `json:"amount"`

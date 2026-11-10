@@ -247,9 +247,11 @@ index `(group_id, status_id)`, `(user_id, status_id)`.
 
 ## 7. Welfare
 
-- `welfare_funds`: `group_id` PK/FK, `name`, `monthly_amount` numeric, `is_active`, `created_at`.
-- `welfare_contributions`: `id`, `fund_id` FK, `user_id` FK, `amount`, `period_label`,
-  `transaction_id` FK NULL, `created_at`; `UNIQUE (fund_id, user_id, period_label)`.
+- `welfare_funds`: `group_id` PK/FK, `public_id`, `name`, `monthly_amount` numeric, `is_active`,
+  `created_at`, `updated_at`; one fund per chama.
+- `welfare_contributions`: `id`, `public_id`, `fund_id` FK, `user_id` FK, `amount`, `period_label`,
+  `transaction_id` FK NULL, `created_at`; `UNIQUE (fund_id, user_id, period_label)`, composite
+  tenant FK back to the fund.
 - `welfare_claims`: `id`, `public_id`, `fund_id`, `user_id`, `amount`, `reason`,
   `status_id` FK `welfare_claim_statuses`, `requested_at`, `decided_by` FK NULL, `decided_at`,
   `payout_transaction_id` FK NULL, `comment` text.
@@ -262,13 +264,14 @@ index `(group_id, status_id)`, `(user_id, status_id)`.
   `rotation_cycle_statuses`, `ordering_mode_id` FK `rotation_ordering_modes`,
   `contribution_amount` numeric, `starts_on` date, `member_count` smallint,
   `draw_seed` text NULL (verifiable random draw), `created_by`, `created_at`, `completed_at`.
-- `rotation_slots`: `id`, `cycle_id` FK, `member_id` FK users, `position` smallint,
+- `rotation_slots`: `id`, `public_id`, `cycle_id` FK, `member_id` FK users, `position` smallint,
   `payout_date` date, `payout_transaction_id` FK NULL. `UNIQUE (cycle_id, position)`,
-  `UNIQUE (cycle_id, member_id)`.
-- `rotation_proposals`: `id`, `public_id`, `cycle_id` FK, `proposed_by` FK,
+  `UNIQUE (cycle_id, member_id)`; composite tenant FK back to the cycle.
+- `rotation_proposals`: `id`, `public_id`, `cycle_id` FK, `group_id`, `proposed_by` FK,
   `status_id` FK `rotation_proposal_statuses`, `quorum_percent` smallint DEFAULT 60,
   `opens_at`, `closes_at` NOT NULL, `closed_at` NULL, `result` jsonb NULL
-  (`{for, against, abstain, eligible, quorum_met}`).
+  (`{for, against, abstain, eligible, quorum_met}`). Partial unique index on
+  `(cycle_id) WHERE closed_at IS NULL` permits one open proposal per cycle.
 - `rotation_proposal_slots`: `proposal_id` FK, `position` smallint, `member_id` FK,
   PK `(proposal_id, position)`, `UNIQUE (proposal_id, member_id)`.
 - `rotation_votes`: `id`, `proposal_id` FK, `member_id` FK, `choice_id` FK `vote_choices`,
@@ -284,8 +287,12 @@ transaction with `SELECT … FOR UPDATE` on the proposal row.
 ## 9. Operations
 
 ### `notifications`
-`id`, `user_id` FK, `type_id` FK, `title` text, `body` text, `data` jsonb, `read_at` NULL,
-`pushed_at` NULL, `created_at`. Index `(user_id, read_at, created_at DESC)`.
+`id`, `public_id`, `user_id` FK, `group_id` FK NULL, `type_id` FK, `title` text, `body` text,
+`data` jsonb, `dedupe_key` text NULL, `read_at` NULL, `pushed_at` NULL, `created_at`.
+`UNIQUE (user_id, dedupe_key)` is what makes each domain event create at most one row; a failed
+push leaves `pushed_at` NULL and is retried only by a later explicit action, never by duplicating
+the notification. Indexes: `(user_id, created_at DESC)` and the partial unread index
+`(user_id, created_at DESC) WHERE read_at IS NULL`.
 
 ### `audit_logs` — append-only
 `id`, `group_id` FK NULL, `actor_user_id` FK NULL, `action_code` text (e.g. `payment.manual.create`),
@@ -374,20 +381,14 @@ mutated after billing.
 | 0003 | `users_auth` | users, user_pins, user_devices, refresh_tokens, otp_codes, auth_throttle |
 | 0004 | `groups_members` | groups, group_members, group_loan_settings, fine_rules |
 | 0005 | `payment_settings` | group_payment_settings |
-| 0006 | `transactions` | transactions + indexes |
-| 0007 | `append_only` | trigger functions for transactions + audit_logs |
-| 0008 | `payment_requests` | payment_requests, idempotency_keys |
-| 0009 | `loans` | loans, loan_guarantors, loan_schedule_items, loan_approvals |
-| 0010 | `fines` | fines |
-| 0011 | `welfare` | welfare_funds, welfare_contributions, welfare_claims |
-| 0012 | `rotation` | cycles, slots, proposals, proposal_slots, votes |
-| 0013 | `notifications_audit` | notifications, audit_logs |
-| 0014 | `reports_jobs` | report_jobs, jobs |
-| 0015 | `platform_console` | platform_roles, platform_users + seed owner from env on first boot |
-| 0016 | `billing_catalog` | billing lookups, plans, plan_features, addons + seed three plans |
-| 0017 | `billing_tenancy` | subscriptions, invoices, invoice_lines, billing_payments, usage_events, billing_settings, v_platform_revenue |
-| 0018 | `views` | v_ledger_entries, v_member_balances, v_group_totals, v_loan_book, v_defaulter_board |
-| 0019 | `materialized` | mv_group_daily_cashflow + unique index |
+| 0006 | `ledger` | transactions, payment_requests, idempotency_keys |
+| 0007 | `append_only` | append-only triggers for transactions and audit_logs |
+| 0008 | `loans` | group_loan_settings, loans, loan_guarantors, loan_schedule_items, loan_approvals |
+| 0009 | `fines` | fine_rules, fines |
+| 0010 | `welfare` | welfare_funds, welfare_contributions, welfare_claims |
+| 0011 | `rotation` | cycles, slots, proposals, proposal_slots, votes |
+| 0012 | `notifications` | notifications + dedupe/unread indexes |
+| 0013+ | planned | reports/jobs, platform console, billing, views/materialized |
 | — | `seed_dev` (guarded) | demo chama, only when `APP_ENV=development` via Makefile target, never in `make migrate` |
 
 `down` reverses each step in dependency order (drop views → triggers → tables → lookups).

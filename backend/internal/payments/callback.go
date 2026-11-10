@@ -75,7 +75,7 @@ func (s *Service) HandleCallback(ctx context.Context, groupPublicID, secret stri
 		return nil
 	}
 
-	if err := s.repo.Settle(ctx, SettleInput{
+	event, err := s.repo.Settle(ctx, SettleInput{
 		GroupID:     group.ID,
 		CheckoutID:  stk.CheckoutRequestID,
 		Status:      status,
@@ -83,9 +83,16 @@ func (s *Service) HandleCallback(ctx context.Context, groupPublicID, secret stri
 		ResultDesc:  stk.ResultDesc,
 		Receipt:     receipt,
 		RawCallback: raw,
-	}); err != nil {
+	})
+	if err != nil {
 		s.log.ErrorContext(ctx, "settle callback", "checkout", stk.CheckoutRequestID, "error", err)
 		return err
+	}
+	if event != nil {
+		event.GroupPublicID = group.PublicID
+		if s.onSettled != nil {
+			s.onSettled(ctx, *event)
+		}
 	}
 	return nil
 }

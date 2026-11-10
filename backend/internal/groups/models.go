@@ -110,6 +110,17 @@ type JoinResult struct {
 	Message   string `json:"message"`
 }
 
+// InvitePreview is the small, public shape shown by /join/{code}. It never
+// exposes member identities beyond the inviting admin's first name.
+type InvitePreview struct {
+	GroupName             string `json:"group_name"`
+	AdminFirstName        string `json:"admin_first_name"`
+	ActiveMembers         int64  `json:"active_members"`
+	Currency              string `json:"currency"`
+	ContributionAmount    string `json:"contribution_amount"`
+	ContributionFrequency string `json:"contribution_frequency"`
+}
+
 type MemberUpdateInput struct {
 	Role   *string `json:"role"`
 	Status *string `json:"status"`

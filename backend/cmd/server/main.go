@@ -11,18 +11,24 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/chama/chama/backend/internal/audit"
 	"github.com/chama/chama/backend/internal/auth"
 	"github.com/chama/chama/backend/internal/config"
 	"github.com/chama/chama/backend/internal/fines"
 	"github.com/chama/chama/backend/internal/groups"
 	"github.com/chama/chama/backend/internal/loans"
+	"github.com/chama/chama/backend/internal/notifications"
 	"github.com/chama/chama/backend/internal/payments"
 	"github.com/chama/chama/backend/internal/platform/crypto"
 	"github.com/chama/chama/backend/internal/platform/db"
 	"github.com/chama/chama/backend/internal/platform/logger"
+	"github.com/chama/chama/backend/internal/platform/money"
 	"github.com/chama/chama/backend/internal/platform/scheduler"
+	"github.com/chama/chama/backend/internal/reports"
+	"github.com/chama/chama/backend/internal/rotation"
 	"github.com/chama/chama/backend/internal/routes"
 	"github.com/chama/chama/backend/internal/users"
+	"github.com/chama/chama/backend/internal/welfare"
 )
 
 func main() {
@@ -80,6 +86,8 @@ func run() error {
 
 	groupsSvc := groups.NewService(groups.NewRepository(pool), cipher, log,
 		groups.Options{PublicBaseURL: cfg.PublicBaseURL})
+	auditSvc := audit.NewService(audit.NewRepository(pool))
+	groupsSvc.SetAuditor(auditSvc)
 
 	var paymentProvider payments.Provider = &payments.Mock{}
 	if cfg.PaymentsProvider == "daraja" {
@@ -90,8 +98,35 @@ func run() error {
 		paymentProvider = daraja
 	}
 	paymentsSvc := payments.NewService(payments.NewRepository(pool), groupsSvc, paymentProvider, cfg.PublicBaseURL, log)
+	notificationSvc := notifications.NewService(notifications.NewRepository(pool),
+		notifications.NewPusher(cfg.PushProvider, cfg.FCMServerKey, log), log)
+	welfareSvc := welfare.NewService(welfare.NewRepository(pool), log)
 	finesSvc := fines.NewService(fines.NewRepository(pool), log)
 	loansSvc := loans.NewService(loans.NewRepository(pool), log)
+	rotationSvc := rotation.NewService(rotation.NewRepository(pool), log)
+	reportsSvc := reports.NewService(reports.NewRepository(pool), pool, auditSvc, log)
+	finesSvc.SetNotifier(notificationSvc)
+	loansSvc.SetNotifier(notificationSvc)
+	rotationSvc.SetNotifier(notificationSvc)
+
+	paymentsSvc.OnSettled(func(ctx context.Context, event payments.SettledEvent) {
+		if event.Status != "completed" {
+			return
+		}
+		if event.Purpose == "welfare_contribution" {
+			if err := welfareSvc.RecordSettledPayment(ctx, event.GroupID, event.UserID,
+				event.AmountCents, event.TransactionID); err != nil {
+				log.WarnContext(ctx, "record welfare payment", "error", err)
+			}
+		}
+		groupID := event.GroupID
+		_ = notificationSvc.Notify(ctx, notifications.Event{
+			UserID: event.UserID, GroupID: &groupID, Type: "payment_received",
+			Title: "Payment received", Body: money.Cents(event.AmountCents).String() + " was recorded.",
+			Data:      map[string]any{"transaction_id": event.TransactionPublicID.String(), "purpose": event.Purpose},
+			DedupeKey: "payment:" + event.TransactionPublicID.String(),
+		})
+	})
 
 	eat := time.FixedZone("EAT", 3*60*60)
 	if loc, locErr := time.LoadLocation("Africa/Nairobi"); locErr == nil {
@@ -111,19 +146,38 @@ func run() error {
 		}
 		return err
 	})
+	scheduler.Daily(ctx, log, "rotation.close", 4, 0, eat, func(ctx context.Context) error {
+		closed, err := rotationSvc.CloseExpired(ctx)
+		if err == nil {
+			log.InfoContext(ctx, "rotation proposals closed", "count", closed)
+		}
+		return err
+	})
+	scheduler.Daily(ctx, log, "notifications.due", 8, 0, eat, func(ctx context.Context) error {
+		created, err := notificationSvc.DueReminders(ctx)
+		if err == nil {
+			log.InfoContext(ctx, "contribution reminders created", "count", created)
+		}
+		return err
+	})
 
 	handler := routes.New(routes.Deps{
-		Config:          cfg,
-		Log:             log,
-		Pool:            pool,
-		Auth:            authSvc,
-		AuthHandler:     auth.NewHandler(authSvc, cfg.TrustProxy),
-		UsersHandler:    users.NewHandler(usersSvc),
-		Groups:          groupsSvc,
-		GroupsHandler:   groups.NewHandler(groupsSvc),
-		PaymentsHandler: payments.NewHandler(paymentsSvc),
-		FinesHandler:    fines.NewHandler(finesSvc),
-		LoansHandler:    loans.NewHandler(loansSvc),
+		Config:               cfg,
+		Log:                  log,
+		Pool:                 pool,
+		Auth:                 authSvc,
+		AuthHandler:          auth.NewHandler(authSvc, cfg.TrustProxy),
+		UsersHandler:         users.NewHandler(usersSvc),
+		Groups:               groupsSvc,
+		GroupsHandler:        groups.NewHandler(groupsSvc),
+		PaymentsHandler:      payments.NewHandler(paymentsSvc),
+		FinesHandler:         fines.NewHandler(finesSvc),
+		LoansHandler:         loans.NewHandler(loansSvc),
+		WelfareHandler:       welfare.NewHandler(welfareSvc),
+		RotationHandler:      rotation.NewHandler(rotationSvc),
+		NotificationsHandler: notifications.NewHandler(notificationSvc),
+		ReportsHandler:       reports.NewHandler(reportsSvc),
+		AuditHandler:         audit.NewHandler(auditSvc),
 	})
 
 	srv := &http.Server{

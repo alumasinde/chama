@@ -17,6 +17,9 @@ backend/internal/web/dist/*
 node_modules/
 web/.svelte-kit/
 web/build/
+web/test-results/
+web/playwright-report/
+web/.auth/
 
 # Flutter
 mobile/.dart_tool/

@@ -19,6 +19,13 @@ const (
 	PermFinePay              = "fine.pay"
 	PermFineWaive            = "fine.waive"
 	PermFineEvaluate         = "fine.evaluate"
+	PermWelfareManage        = "welfare.manage"
+	PermWelfareContribute    = "welfare.contribute"
+	PermRotationManage       = "rotation.manage"
+	PermRotationVote         = "rotation.vote"
+	PermReportRead           = "report.read"
+	PermReportExport         = "report.export"
+	PermAuditRead            = "audit.read"
 )
 
 var roleCapabilities = map[string]map[string]bool{
@@ -30,6 +37,9 @@ var roleCapabilities = map[string]map[string]bool{
 		PermLoanDisburse: true, PermLoanRepay: true,
 		PermFineRulesWrite: true, PermFineManage: true, PermFinePay: true,
 		PermFineWaive: true, PermFineEvaluate: true,
+		PermWelfareManage: true, PermWelfareContribute: true,
+		PermRotationManage: true, PermRotationVote: true,
+		PermReportRead: true, PermReportExport: true, PermAuditRead: true,
 	},
 	"treasurer": {
 		PermGroupRead: true, PermMemberRead: true,
@@ -38,13 +48,17 @@ var roleCapabilities = map[string]map[string]bool{
 		PermLoanDisburse: true, PermLoanRepay: true,
 		PermFineRulesWrite: true, PermFineManage: true, PermFinePay: true,
 		PermFineWaive: true, PermFineEvaluate: true,
+		PermWelfareManage: true, PermWelfareContribute: true,
+		PermRotationManage: true, PermRotationVote: true,
+		PermReportRead: true, PermReportExport: true,
 	},
 	"secretary": {
 		PermGroupRead: true, PermMemberRead: true,
-		PermLoanApply: true, PermFineEvaluate: true,
+		PermLoanApply: true, PermFineEvaluate: true, PermRotationVote: true,
+		PermReportRead: true, PermReportExport: true,
 	},
 	"member": {
-		PermGroupRead: true, PermMemberRead: true, PermLoanApply: true,
+		PermGroupRead: true, PermMemberRead: true, PermLoanApply: true, PermRotationVote: true,
 	},
 }
 

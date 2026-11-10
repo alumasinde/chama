@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const createEvaluatedFines = `-- name: CreateEvaluatedFines :execrows
+const createEvaluatedFines = `-- name: CreateEvaluatedFines :many
 INSERT INTO fines (
     group_id, user_id, fine_rule_id, fine_type_id, amount, reason, status_id,
     period_label, assessed_on
@@ -50,6 +50,7 @@ WHERE fr.group_id = $2
         AND t.created_at < $3::timestamptz
   )
 ON CONFLICT DO NOTHING
+RETURNING public_id, user_id, (round(amount * 100))::bigint AS amount_cents
 `
 
 type CreateEvaluatedFinesParams struct {
@@ -59,17 +60,35 @@ type CreateEvaluatedFinesParams struct {
 	PeriodStart time.Time
 }
 
-func (q *Queries) CreateEvaluatedFines(ctx context.Context, arg CreateEvaluatedFinesParams) (int64, error) {
-	result, err := q.db.Exec(ctx, createEvaluatedFines,
+type CreateEvaluatedFinesRow struct {
+	PublicID    uuid.UUID
+	UserID      int64
+	AmountCents int64
+}
+
+func (q *Queries) CreateEvaluatedFines(ctx context.Context, arg CreateEvaluatedFinesParams) ([]CreateEvaluatedFinesRow, error) {
+	rows, err := q.db.Query(ctx, createEvaluatedFines,
 		arg.PeriodLabel,
 		arg.GroupID,
 		arg.PeriodEnd,
 		arg.PeriodStart,
 	)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	var items []CreateEvaluatedFinesRow
+	for rows.Next() {
+		var i CreateEvaluatedFinesRow
+		if err := rows.Scan(&i.PublicID, &i.UserID, &i.AmountCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const createFine = `-- name: CreateFine :one

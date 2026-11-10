@@ -27,6 +27,28 @@ export function setRefreshHandler(handler: () => Promise<boolean>) {
 }
 
 // api talks to /api/v1, refreshes once on a 401, and normalises errors.
+export async function apiDownload(path: string, auth: string): Promise<Blob> {
+  const load = async (retry: boolean): Promise<Response> => {
+    const response = await fetch(`/api/v1${path}`, { headers: { Authorization: `Bearer ${auth}` } });
+    if (response.status === 401 && retry && refreshHandler && (await refreshHandler())) {
+      return load(false);
+    }
+    return response;
+  };
+  const response = await load(true);
+  if (!response.ok) {
+    const text = await response.text();
+    let message = 'Could not download that file.';
+    try {
+      message = JSON.parse(text)?.error?.message ?? message;
+    } catch {
+      // Keep the plain fallback when the server did not return JSON.
+    }
+    throw new ApiFailure(response.status, 'download_failed', message);
+  }
+  return response.blob();
+}
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { ...options.headers };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';

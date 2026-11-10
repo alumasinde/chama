@@ -1,11 +1,11 @@
 # API Surface — `/api/v1`
 
-Implemented today: §3 auth/profile, §4 groups/members/invites/payment settings, and the
-STK, callback and transaction-read parts of §5–§6. Later sections are the agreed contract
-for the phases that follow.
+Implemented through Phase 6: §3 auth/profile, §4 groups/members/invites/settings, §5–§6
+ledger and M-Pesa, §7 loans, §8 fines/welfare/rotation, and §9 notifications, reports and audit.
+Billing and the platform console remain the agreed contract for Phase 8.
 
-REST, JSON, UTF-8. Same origin for web and mobile. `docs/openapi.yaml` is generated from this
-document and linted in CI.
+REST, JSON, UTF-8. Same origin for web and mobile. `docs/openapi.yaml` mirrors this document;
+keep both in sync when adding an endpoint.
 
 ## 1. Conventions
 
@@ -101,13 +101,14 @@ record-keeper who is not a signatory.
 |---|---|---|
 | POST | `/groups` | auth (creator becomes admin) |
 | GET | `/groups` | auth (my groups) |
+| GET | `/invites/{code}` | public (`group_name`, `admin_first_name`, `active_members`, `currency`, `contribution_amount`, `contribution_frequency`) |
 | GET · PATCH | `/groups/{groupId}` | member · admin |
 | POST | `/groups/join` | auth (`{invite_code}` → membership `pending`) |
 | GET | `/groups/{groupId}/members` | member |
 | PATCH | `/groups/{groupId}/members/{userId}` | admin (`{role_code?, status_code?}`) |
 | POST | `/groups/{groupId}/invites/rotate` | admin |
 | GET · PUT | `/groups/{groupId}/payment-settings` | admin/treasurer |
-| POST | `/groups/{groupId}/payment-settings/verify` | admin/treasurer |
+| POST | `/groups/{groupId}/payment-settings/verify` | **planned** — live Daraja verification is not mounted yet |
 | GET · PUT | `/groups/{groupId}/loan-settings` | admin/treasurer |
 | GET · POST · PATCH | `/groups/{groupId}/fine-rules` | admin/treasurer |
 
@@ -118,8 +119,11 @@ consumer_secret_masked, passkey_masked, is_verified, verified_at, updated_at}` �
 and column); omitting a secret keeps the stored value. The `callback_url` (which embeds the
 unguessable group secret) appears only in the `PUT` response that first saves it.
 
-`POST /groups/join` returns `{group_id, group_name, status: "pending", message}` and is
-idempotent. Pending members get `403 membership_pending` from group-scoped reads. Member
+`GET /invites/{code}` is the public preview used by `/join/{code}`; it returns only the chama
+name, inviting admin's first name, active member count and contribution terms. Invalid or
+rotated codes return the same generic `404`. `POST /groups/join` returns
+`{group_id, group_name, status: "pending", message}` and is idempotent. Pending members get
+`403 membership_pending` from group-scoped reads. Member
 updates take `{role?, status?}` with role ∈ `admin|treasurer|secretary|member` and status ∈
 `active|pending|suspended|exited`; demoting or removing the last active admin returns
 `409 last_admin`. Rotating the invite returns `{invite_code}` and invalidates the old code.
@@ -237,14 +241,16 @@ Loan detail includes `status`, `principal`, `interest_rate`, `interest_method`, 
 | POST | `/groups/{groupId}/fines/{fineId}/pay` | treasurer (manual, step-up) |
 | POST | `/groups/{groupId}/fines/evaluate` | admin/treasurer |
 | GET · PUT | `/groups/{groupId}/welfare` | member · admin/treasurer |
-| GET | `/groups/{groupId}/welfare/contributions` | member |
+| GET | `/groups/{groupId}/welfare/contributions` | member (own) / admin/treasurer (all) |
+| POST | `/groups/{groupId}/welfare/contributions` | admin/treasurer (manual, step-up) |
 | GET · POST | `/groups/{groupId}/welfare/claims` | member |
+| GET | `/groups/{groupId}/welfare/claims/{claimId}` | member (own) / admin/treasurer |
 | POST | `/groups/{groupId}/welfare/claims/{claimId}/decision` | admin/treasurer |
 | POST | `/groups/{groupId}/welfare/claims/{claimId}/payout` | treasurer (idempotent, step-up) |
 | POST · GET | `/groups/{groupId}/rotation/cycles` | admin/treasurer · member |
 | GET | `/groups/{groupId}/rotation/cycles/{cycleId}` | member |
 | POST | `/groups/{groupId}/rotation/cycles/{cycleId}/start` | admin/treasurer (materialises slots) |
-| POST | `/groups/{groupId}/rotation/cycles/{cycleId}/proposals` | admin/treasurer (`{slots[], closes_at, quorum_percent}`) |
+| GET · POST | `/groups/{groupId}/rotation/cycles/{cycleId}/proposals` | member · admin/treasurer (`{slots[], closes_at, quorum_percent}`) |
 | GET | `/groups/{groupId}/rotation/proposals/{proposalId}` | member (includes tally + own vote) |
 | POST | `/groups/{groupId}/rotation/proposals/{proposalId}/vote` | member (`{choice}`, upsert while open) |
 | POST | `/groups/{groupId}/rotation/cycles/{cycleId}/payouts` | treasurer (idempotent, step-up) |
@@ -262,6 +268,22 @@ rows. Waiving requires a reason and only works on an unpaid fine (`409 fine_not_
 Manual payment must be for the full fine amount and writes a completed `fine` ledger row in
 the same transaction as the status change.
 
+Welfare has one fund per chama (`GET` returns `{configured:false}` before setup). Contributions
+are one per member per period (`?period_label`, default current `YYYY-MM`), unique on
+`(fund, member, period)`; a completed M-Pesa `welfare_contribution` links to the same row. Claims
+move `pending → approved|rejected → paid`; a payout requires an approved claim with enough fund
+balance, writes a completed `welfare_payout` ledger row and marks the claim paid in one
+transaction. Repeating a payout returns `409 claim_not_approved`.
+
+Rotation cycles are `draft → active → completed`. `random` starts with a stored hex seed that
+derives the order from `SHA-256(seed:member)`; `manual` takes the order when created; `vote`
+starts only after a passing proposal. A proposal names every active member exactly once, has a
+`closes_at` within 30 days and `quorum_percent` (default 60). Votes are `for|against|abstain`,
+one per member, upserted while open. Quorum is `ceil(eligible × percent / 100)`; a tie fails
+because passing requires `for > against`. A passed proposal auto-starts its cycle. Payouts follow
+slot position, are step-up-protected, write `rotation_payout` ledger rows, and the final payout
+completes the cycle. `GET /me/rotation` returns the caller’s position and payout date.
+
 ---
 
 ## 9. Notifications, reports, audit
@@ -271,15 +293,26 @@ the same transaction as the status change.
 | GET | `/notifications` | auth (`?unread=true`) |
 | POST | `/notifications/read` | auth (`{ids[]}` or `{all:true}`) |
 | POST | `/me/devices` | auth (FCM token; already listed above) |
-| GET | `/groups/{groupId}/reports/dashboard` | member (role-trimmed payload) |
+| GET | `/groups/{groupId}/reports/dashboard` | member |
 | GET | `/groups/{groupId}/reports/loan-book` | admin/treasurer/secretary |
 | GET | `/groups/{groupId}/reports/defaulters` | admin/treasurer/secretary |
 | GET | `/groups/{groupId}/reports/fines` | admin/treasurer/secretary |
-| GET | `/groups/{groupId}/reports/cashflow?from=&to=&bucket=day|week|month` | admin/treasurer |
+| GET | `/groups/{groupId}/reports/jobs` | admin/treasurer/secretary |
 | POST | `/groups/{groupId}/reports/jobs` | admin/treasurer/secretary (`{report_code, params, format}`) |
-| GET | `/groups/{groupId}/reports/jobs` · `/reports/jobs/{jobId}` | requester/admin |
-| GET | `/reports/jobs/{jobId}/download` | requester/admin (streams CSV/PDF) |
-| GET | `/groups/{groupId}/audit-logs` | admin (filters: actor, action, entity, from, to) |
+| GET | `/groups/{groupId}/reports/jobs/{jobId}/download` | admin/treasurer/secretary (streams CSV/PDF) |
+| GET | `/groups/{groupId}/audit-logs` | admin (filters: action, entity_type, from, to) |
+| GET | `/groups/{groupId}/audit-logs/{auditId}` | admin (full before/after entry) |
+
+Notifications are inserted once per `(user_id, dedupe_key)` with `ON CONFLICT DO NOTHING`, then
+pushed best-effort to the member’s registered devices through the `Pusher` interface. The
+default provider is `console`; `PUSH_PROVIDER=fcm` uses the legacy FCM key when configured.
+Domain hooks cover payment received, contribution due reminders, guarantor requests, loan
+updates, fines and rotation turns. `GET /notifications?unread=true` returns
+`{data, unread_count}`; `POST /notifications/read` accepts `{ids:[uuid]}` or `{all:true}` and
+returns `{marked_read}`. A failed push never fails the domain action or creates a second row.
+
+Nightly jobs (EAT): fines 02:00, loan defaults 03:00, rotation proposal close 04:00,
+contribution reminders 08:00.
 
 ---
 
@@ -315,7 +348,7 @@ Feature gates return this before handler execution, so a client never sees a hal
 
 ## 11. Status codes used
 
-`200` read/update · `201` created · `202` accepted (STK, report job, reconcile) · `204` deleted ·
+`200` read/update · `201` created (including report exports) · `202` accepted (STK, reconcile) · `204` deleted ·
 `400` validation · `401` missing/expired token · `402` plan/entitlement (`plan_upgrade_required`,
 `subscription_expired`, `member_limit_reached`) · `403` permission or step-up · `404` not found or
 not a member (no existence leak) · `409` conflict/idempotency · `422` business rule violation

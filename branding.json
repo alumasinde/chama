@@ -1,8 +1,8 @@
 {
   "appName": "Chama Ledger",
   "shortName": "Chama",
-  "primaryColor": "#0B6E4F",
-  "accentColor": "#D9A227",
+  "primaryColor": "#5B2BB5",
+  "accentColor": "#16A34A",
   "currency": "KES",
   "locale": "en",
   "supportEmail": "support@example.co.ke"

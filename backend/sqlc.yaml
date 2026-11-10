@@ -9,6 +9,9 @@ sql:
       - migrations/0006_ledger.up.sql
       - migrations/0008_loans.up.sql
       - migrations/0009_fines.up.sql
+      - migrations/0010_welfare.up.sql
+      - migrations/0011_rotation.up.sql
+      - migrations/0012_notifications.up.sql
     queries: queries
     engine: postgresql
     gen:

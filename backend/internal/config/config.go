@@ -36,6 +36,8 @@ type Config struct {
 	SMSProvider      string
 	PaymentsProvider string
 	DarajaBaseURL    string
+	PushProvider     string
+	FCMServerKey     string
 }
 
 // Load reads env vars, applies development defaults, and refuses unsafe production settings.
@@ -57,6 +59,8 @@ func Load() (*Config, error) {
 		JWTSecret:       getenv("JWT_SECRET", ""),
 		SMSProvider:     getenv("SMS_PROVIDER", "console"),
 		DarajaBaseURL:   getenv("DARAJA_BASE_URL", "https://sandbox.safaricom.co.ke"),
+		PushProvider:    getenv("PUSH_PROVIDER", "console"),
+		FCMServerKey:    getenv("FCM_SERVER_KEY", ""),
 	}
 
 	cfg.PaymentsProvider = getenv("PAYMENTS_PROVIDER", "")

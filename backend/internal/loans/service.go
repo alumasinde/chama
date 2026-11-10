@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/chama/chama/backend/internal/groups"
+	"github.com/chama/chama/backend/internal/notifications"
 	"github.com/chama/chama/backend/internal/platform/httpx"
 	"github.com/chama/chama/backend/internal/platform/money"
 	store "github.com/chama/chama/backend/internal/store"
@@ -18,13 +19,16 @@ import (
 )
 
 type Service struct {
-	repo *Repository
-	log  *slog.Logger
+	repo     *Repository
+	log      *slog.Logger
+	notifier notifications.Notifier
 }
 
 func NewService(repo *Repository, log *slog.Logger) *Service {
 	return &Service{repo: repo, log: log}
 }
+
+func (s *Service) SetNotifier(n notifications.Notifier) { s.notifier = n }
 
 func (s *Service) Apply(ctx context.Context, scope groups.Scope, user users.User, in ApplyInput) (LoanView, error) {
 	r, err := s.rules(ctx, scope.Group.ID)
@@ -118,6 +122,7 @@ func (s *Service) Apply(ctx context.Context, scope groups.Scope, user users.User
 	if err != nil {
 		return LoanView{}, err
 	}
+	s.notifyApplication(ctx, scope.Group.ID, user.ID, ref.PublicID, purpose, invites)
 	return s.Detail(ctx, scope.Group.ID, ref.PublicID, user.ID, true)
 }
 

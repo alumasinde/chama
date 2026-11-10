@@ -52,5 +52,7 @@ func (s *Service) GuaranteeDecision(ctx context.Context, scope groups.Scope, use
 			return LoanView{}, err
 		}
 	}
+	s.notifyLoanUpdate(ctx, scope.Group.ID, row.UserID, row.PublicID,
+		"Guarantor responded", decision+" your guarantee request", "guarantor-response:"+decision)
 	return s.Detail(ctx, scope.Group.ID, publicID, user.ID, true)
 }

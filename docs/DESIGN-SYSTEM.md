@@ -1,8 +1,11 @@
 # UI / UX Design System
 
-Reference feel: **KCB Mobile** and **Co-operative Bank Kenya** apps — calm, trust-first banking
-UI. Deep green brand surface, white cards floating on a pale canvas, one obvious primary action
-per screen, money set in large tabular figures, receipts that look official.
+Reference feel: the two supplied **Chama** mockups, documented screen-by-screen in
+[`UI-REFERENCE.md`](UI-REFERENCE.md). Those images are the visual source of truth and supersede
+any older colour or navigation guidance in this document where they conflict. The direction is
+a friendly Kenyan fintech app: deep purple brand surfaces, vivid purple selection and navigation,
+green pay/confirm actions, white cards on a lavender canvas, real member photography, and money
+in large tabular figures.
 
 What we take from them: the balance card, the 4-up quick-action grid, the rounded 48dp list rows
 with circular leading icons, the bottom-sheet amount keypad, the green success tick with a
@@ -16,17 +19,17 @@ owe" and "how do I pay" in one glance.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `primary` | `#0B6E4F` | `#3AA57C` | brand, primary CTA, active tab |
-| `primaryDeep` | `#084F39` | `#0B3B2C` | gradient end, headers |
-| `accent` | `#D9A227` | `#E8B84B` | highlights, "pending" chips, rotation |
-| `danger` | `#B3261E` | `#F2B8B5` | overdue, failed, destructive |
-| `success` | `#1E7B4F` | `#7ED9A8` | paid, received |
-| `warning` | `#8A5A00` | `#F2C879` | due soon, awaiting action |
-| `canvas` | `#F4F6F5` | `#0E1512` | page background |
-| `surface` | `#FFFFFF` | `#151F1B` | cards, sheets, tables |
-| `ink` | `#0F1F1A` | `#E8EFEB` | primary text |
-| `inkMuted` | `#5B6B64` | `#9DAFA7` | secondary text |
-| `line` | `#E3E8E5` | `#253029` | 1px borders, table rules |
+| `primary` | `#5B2BB5` | `#A78BFA` | brand, selection, active tab |
+| `primaryDeep` | `#2E0A5E` | `#2E0A5E` | splash/header gradients, dark purple cards |
+| `accent` | `#16A34A` | `#4ADE80` | pay/confirm/start actions, positive money |
+| `danger` | `#D92D20` | `#F2B8B5` | overdue, failed, destructive |
+| `success` | `#16A34A` | `#4ADE80` | paid, received |
+| `warning` | `#C47A00` | `#F2C879` | due soon, awaiting action |
+| `canvas` | `#F7F4FC` | `#120B1E` | page background |
+| `surface` | `#FFFFFF` | `#1C1230` | cards, sheets, tables |
+| `ink` | `#1D1233` | `#F1EAFB` | primary text |
+| `inkMuted` | `#766A86` | `#B9A9CC` | secondary text |
+| `line` | `#EAE2F4` | `#35254D` | 1px borders, table rules |
 
 **Change the app name in one line:** `branding.json → appName`. `make brand` regenerates
 `internal/platform/brand/brand.gen.go`, `web/src/lib/brand.gen.ts`,
@@ -52,22 +55,26 @@ counting up — show the real number immediately.
 
 ## 2. Mobile information architecture (Flutter)
 
-Bottom navigation, 5 tabs, labels always visible (no icon-only):
+Bottom navigation, 5 tabs, labels always visible (no icon-only), following
+[`UI-REFERENCE.md`](UI-REFERENCE.md):
 
-`Home · Money · Loans · Group · Profile`
+`Home · Chamas · Marketplace · Wallet · Profile`
 
 ```
-Home        balance card, quick actions, next due, group total, recent activity
-Money       contributions, fines, welfare payments, statements, pay button
-Loans       my loan(s), apply, guarantor requests, schedule, repayments
-Group       info, members, rotation (queue + voting), announcements, invite
+Home        greeting, total savings, quick actions, my chamas, recent activity
+Chamas      group list/detail, members, contributions, loans, rotation, welfare
+Marketplace product/service discovery and listing detail (UX direction; backend future)
+Wallet      available balance, deposit/withdraw, transactions
 Profile     personal details, PIN, biometrics, password, notifications, language, logout
 ```
 
+Contribute, Request Loan, Group Details and Contribution History are pushed screens from Home
+or Chamas, not extra tabs. Loans, fines, welfare and rotation live inside the relevant chama.
+
 ### 2.1 Onboarding (`/onboarding`)
 
-Full-bleed deep-green header, white sheet rising from the bottom with the form. Steps are one
-screen each, with a 4-dot progress rail:
+Full-bleed deep-purple header or member photograph, white sheet rising from the bottom with the
+form. Steps are one screen each, with a 4-dot progress rail:
 
 1. **Phone** — `+254` locked prefix, 9-digit field, "We'll text you a 6-digit code."
 2. **OTP** — 6 boxes, auto-advance, paste-to-fill, "Resend in 0:42", "Change number".
@@ -97,7 +104,7 @@ sheet with countdown and "Reset PIN with OTP".
 │ Umoja Women's Chama  ⌄                     │
 │ ┌────────────────────────────────────────┐ │
 │ │ My savings            👁                │ │
-│ │ KES 34,500.00                          │ │  ← green gradient card
+│ │ KES 34,500.00                          │ │  ← purple gradient card
 │ │ +KES 2,000 this month   ▲ 12%          │ │
 │ └────────────────────────────────────────┘ │
 │ ┌────────┬────────┬────────┬────────┐      │

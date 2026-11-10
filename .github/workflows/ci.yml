@@ -57,3 +57,104 @@ jobs:
           go run ./cmd/migrate up
           go run ./cmd/migrate down 3
           go run ./cmd/migrate up
+
+  web:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: chama
+          POSTGRES_PASSWORD: chama
+          POSTGRES_DB: chama
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chama -d chama"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://chama:chama@localhost:5432/chama?sslmode=disable
+      APP_ENV: development
+      HTTP_ADDR: ":8081"
+      PUBLIC_BASE_URL: http://localhost:8081
+      JWT_SECRET: ci-only-jwt-secret-change-me-0123456789abcdef
+      ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      SMS_PROVIDER: console
+      PAYMENTS_PROVIDER: mock
+      E2E_BASE_URL: http://localhost:8081
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: backend/go.sum
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Type-check the web app
+        working-directory: web
+        run: npm run check
+      - name: Build the embedded web app
+        working-directory: web
+        run: npm run build
+      - name: Download Go modules
+        working-directory: backend
+        run: go mod download
+      - name: Apply migrations
+        working-directory: backend
+        run: go run ./cmd/migrate up
+      - name: Build the single binary
+        working-directory: backend
+        run: |
+          mkdir -p ../bin
+          make build
+      - name: Start the server
+        run: |
+          cd backend
+          ../bin/chama-server > ../server.log 2>&1 &
+          echo $! > ../server.pid
+          cd ..
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8081/readyz >/dev/null; then
+              echo "server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat server.log
+          exit 1
+      - name: Seed demo data and browser sessions
+        run: |
+          SEED_JSON="$RUNNER_TEMP/chama-seed.json"
+          SEED_OUTPUT="$SEED_JSON" AUTH_DIR=web/.auth node scripts/seed-ci.mjs
+          DEMO_ACCESS_TOKEN="$(node -e "const fs=require('fs');const s=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(s.admin_access_token)" "$SEED_JSON")"
+          DEMO_GROUP_ID="$(node -e "const fs=require('fs');const s=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(s.group_id)" "$SEED_JSON")"
+          E2E_INVITE_CODE="$(node -e "const fs=require('fs');const s=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(s.invite_code)" "$SEED_JSON")"
+          echo "E2E_INVITE_CODE=$E2E_INVITE_CODE" >> "$GITHUB_ENV"
+          DEMO_ACCESS_TOKEN="$DEMO_ACCESS_TOKEN" DEMO_GROUP_ID="$DEMO_GROUP_ID" DEMO_PIN=4826 node scripts/seed-demo.mjs
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Run browser tests
+        working-directory: web
+        run: npm run test:e2e
+      - name: Stop the server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then kill "$(cat server.pid)" 2>/dev/null || true; fi
+      - name: Upload browser test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results
+          path: |
+            web/test-results
+            server.log
+          if-no-files-found: ignore

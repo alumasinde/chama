@@ -107,8 +107,22 @@ type SettleInput struct {
 	RawCallback []byte
 }
 
+// SettledEvent describes the one transition a callback made, for downstream hooks.
+type SettledEvent struct {
+	GroupID             int64
+	GroupPublicID       uuid.UUID
+	UserID              int64
+	AmountCents         int64
+	Purpose             string
+	Status              string
+	Receipt             string
+	TransactionID       int64
+	TransactionPublicID uuid.UUID
+}
+
 // Settle is idempotent: a second callback for the same checkout changes nothing.
-func (r *Repository) Settle(ctx context.Context, in SettleInput) error {
+func (r *Repository) Settle(ctx context.Context, in SettleInput) (*SettledEvent, error) {
+	var event *SettledEvent
 	err := db.WithTx(ctx, r.pool, func(q *store.Queries) error {
 		request, err := q.GetPaymentRequestByCheckout(ctx, store.GetPaymentRequestByCheckoutParams{
 			GroupID: in.GroupID, CheckoutRequestID: in.CheckoutID,
@@ -134,18 +148,26 @@ func (r *Repository) Settle(ctx context.Context, in SettleInput) error {
 		if err != nil {
 			return err
 		}
-		return q.SettlePaymentRequest(ctx, store.SettlePaymentRequestParams{
+		if err := q.SettlePaymentRequest(ctx, store.SettlePaymentRequestParams{
 			Status:        in.Status,
 			ResultCode:    nullable(in.ResultCode),
 			ResultDesc:    nullable(in.ResultDesc),
 			TransactionID: &settled.ID,
 			ID:            request.ID,
-		})
+		}); err != nil {
+			return err
+		}
+		event = &SettledEvent{
+			GroupID: in.GroupID, UserID: settled.UserID, AmountCents: settled.AmountCents,
+			Purpose: settled.TransactionType, Status: settled.Status, Receipt: in.Receipt,
+			TransactionID: settled.ID, TransactionPublicID: settled.PublicID,
+		}
+		return nil
 	})
 	if isDuplicateReference(err) {
-		return nil
+		return nil, nil
 	}
-	return err
+	return event, err
 }
 
 func (r *Repository) ListTransactions(ctx context.Context, p store.ListTransactionsParams) ([]store.ListTransactionsRow, error) {

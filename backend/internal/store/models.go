@@ -278,6 +278,21 @@ type MemberStatus struct {
 	IsActive    bool
 }
 
+type Notification struct {
+	ID        int64
+	PublicID  uuid.UUID
+	UserID    int64
+	GroupID   *int64
+	TypeID    int16
+	Title     string
+	Body      string
+	Data      []byte
+	DedupeKey *string
+	ReadAt    *time.Time
+	PushedAt  *time.Time
+	CreatedAt time.Time
+}
+
 type NotificationType struct {
 	ID          int16
 	Code        string
@@ -368,6 +383,22 @@ type ReportJobStatus struct {
 	IsActive    bool
 }
 
+type RotationCycle struct {
+	ID                 int64
+	PublicID           uuid.UUID
+	GroupID            int64
+	Name               string
+	StatusID           int16
+	OrderingModeID     int16
+	ContributionAmount pgtype.Numeric
+	StartsOn           pgtype.Date
+	MemberCount        int16
+	DrawSeed           *string
+	CreatedBy          int64
+	CreatedAt          time.Time
+	CompletedAt        *time.Time
+}
+
 type RotationCycleStatus struct {
 	ID          int16
 	Code        string
@@ -386,6 +417,29 @@ type RotationOrderingMode struct {
 	IsActive    bool
 }
 
+type RotationProposal struct {
+	ID              int64
+	PublicID        uuid.UUID
+	GroupID         int64
+	CycleID         int64
+	ProposedBy      int64
+	StatusID        int16
+	QuorumPercent   int16
+	EligibleMembers int16
+	OpensAt         time.Time
+	ClosesAt        time.Time
+	ClosedAt        *time.Time
+	Result          []byte
+	CreatedAt       time.Time
+}
+
+type RotationProposalSlot struct {
+	ProposalID int64
+	GroupID    int64
+	Position   int16
+	MemberID   int64
+}
+
 type RotationProposalStatus struct {
 	ID          int16
 	Code        string
@@ -393,6 +447,27 @@ type RotationProposalStatus struct {
 	Description *string
 	SortOrder   int32
 	IsActive    bool
+}
+
+type RotationSlot struct {
+	ID                  int64
+	PublicID            uuid.UUID
+	GroupID             int64
+	CycleID             int64
+	MemberID            int64
+	Position            int16
+	PayoutDate          pgtype.Date
+	PayoutTransactionID *int64
+	CreatedAt           time.Time
+}
+
+type RotationVote struct {
+	ID         int64
+	GroupID    int64
+	ProposalID int64
+	MemberID   int64
+	ChoiceID   int16
+	CastAt     time.Time
 }
 
 type Transaction struct {
@@ -476,6 +551,22 @@ type VoteChoice struct {
 	IsActive    bool
 }
 
+type WelfareClaim struct {
+	ID                  int64
+	PublicID            uuid.UUID
+	GroupID             int64
+	FundID              int64
+	UserID              int64
+	Amount              pgtype.Numeric
+	Reason              string
+	StatusID            int16
+	RequestedAt         time.Time
+	DecidedBy           *int64
+	DecidedAt           *time.Time
+	PayoutTransactionID *int64
+	Comment             *string
+}
+
 type WelfareClaimStatus struct {
 	ID          int16
 	Code        string
@@ -483,4 +574,26 @@ type WelfareClaimStatus struct {
 	Description *string
 	SortOrder   int32
 	IsActive    bool
+}
+
+type WelfareContribution struct {
+	ID            int64
+	PublicID      uuid.UUID
+	GroupID       int64
+	FundID        int64
+	UserID        int64
+	Amount        pgtype.Numeric
+	PeriodLabel   string
+	TransactionID *int64
+	CreatedAt     time.Time
+}
+
+type WelfareFund struct {
+	ID            int64
+	GroupID       int64
+	Name          string
+	MonthlyAmount pgtype.Numeric
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

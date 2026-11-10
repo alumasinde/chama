@@ -241,7 +241,7 @@ func createCompleted(ctx context.Context, q *store.Queries, groupID, userID, act
 }
 
 func manualReference(prefix string) string {
-	return fmt.Sprintf("%s-%s", prefix, time.Now().UTC().Format("060102150405"))
+	return fmt.Sprintf("%s-%s-%s", prefix, time.Now().UTC().Format("060102150405"), uuid.NewString()[:8])
 }
 
 func mapGuarantorError(err error) error {

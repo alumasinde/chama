@@ -114,7 +114,7 @@
 
 <div class="auth-wrap">
   <aside class="auth-hero">
-    <div class="brand">{session.appName}</div>
+    <a class="brand" href="/" aria-label="{session.appName} home">{session.appName}</a>
     <div>
       <h2>Your chama, kept straight.</h2>
       <p>
@@ -132,6 +132,7 @@
 
   <section class="auth-panel">
     <div class="auth-card card">
+      <a class="auth-back" href="/">Back to {session.appName}</a>
       {#if step === 'phone'}
         <h1>Karibu</h1>
         <p class="muted small" style="margin: 0.25rem 0 1.5rem">Sign in with your phone number.</p>

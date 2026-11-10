@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/chama/chama/backend/internal/auditlog"
 	"github.com/chama/chama/backend/internal/platform/crypto"
 	"github.com/chama/chama/backend/internal/platform/httpx"
 	"github.com/chama/chama/backend/internal/rbac"
@@ -20,15 +21,19 @@ type Options struct {
 }
 
 type Service struct {
-	repo   *Repository
-	cipher *crypto.Cipher
-	log    *slog.Logger
-	opts   Options
+	repo    *Repository
+	cipher  *crypto.Cipher
+	log     *slog.Logger
+	opts    Options
+	auditor auditlog.Writer
 }
 
 func NewService(repo *Repository, cipher *crypto.Cipher, log *slog.Logger, opts Options) *Service {
 	return &Service{repo: repo, cipher: cipher, log: log, opts: opts}
 }
+
+// SetAuditor is optional so unit tests and embedded deployments still work.
+func (s *Service) SetAuditor(auditor auditlog.Writer) { s.auditor = auditor }
 
 func (s *Service) Create(ctx context.Context, user users.User, in CreateInput) (View, error) {
 	p, err := normalizeGroupInput(in)
@@ -151,6 +156,52 @@ func (s *Service) Join(ctx context.Context, user users.User, in JoinInput) (Join
 	return pendingJoin(group), nil
 }
 
+// InvitePreview resolves a rotating code without requiring a session.
+func (s *Service) InvitePreview(ctx context.Context, raw string) (InvitePreview, error) {
+	code := NormalizeInviteCode(raw)
+	if len(code) != inviteLength {
+		return InvitePreview{}, httpx.NotFound("That invite code is not valid.")
+	}
+	group, err := s.repo.GetByInviteCode(ctx, code)
+	if errors.Is(err, ErrNotFound) {
+		return InvitePreview{}, httpx.NotFound("That invite code is not valid.")
+	}
+	if err != nil {
+		return InvitePreview{}, err
+	}
+	members, err := s.repo.Members(ctx, group.ID)
+	if err != nil {
+		return InvitePreview{}, err
+	}
+	adminFirstName := ""
+	for _, member := range members {
+		if member.Role == "admin" && member.Status == "active" {
+			adminFirstName = member.FirstName
+			break
+		}
+	}
+	if adminFirstName == "" {
+		for _, member := range members {
+			if member.Role == "admin" {
+				adminFirstName = member.FirstName
+				break
+			}
+		}
+	}
+	activeMembers, err := s.repo.CountActiveMembers(ctx, group.ID)
+	if err != nil {
+		return InvitePreview{}, err
+	}
+	return InvitePreview{
+		GroupName:             group.Name,
+		AdminFirstName:        adminFirstName,
+		ActiveMembers:         activeMembers,
+		Currency:              "KES",
+		ContributionAmount:    group.Contribution.String(),
+		ContributionFrequency: group.Frequency,
+	}, nil
+}
+
 func pendingJoin(group Group) JoinResult {
 	return JoinResult{
 		GroupID:   group.PublicID.String(),
@@ -228,7 +279,21 @@ func (s *Service) UpdateMember(ctx context.Context, actorID int64, scope Scope, 
 	if err := s.repo.UpdateMembershipState(ctx, params); err != nil {
 		return MemberView{}, err
 	}
-	return s.repo.Member(ctx, scope.Group.ID, targetUserID)
+	member, err := s.repo.Member(ctx, scope.Group.ID, targetUserID)
+	if err != nil {
+		return MemberView{}, err
+	}
+	if s.auditor != nil {
+		if err := s.auditor.Record(ctx, auditlog.Entry{
+			GroupID: scope.Group.ID, ActorID: &actorID, Action: "member.update",
+			EntityType: "member", EntityPublicID: &publicID,
+			Before: map[string]any{"role": target.Role, "status": target.Status},
+			After:  map[string]any{"role": member.Role, "status": member.Status},
+		}); err != nil {
+			s.log.WarnContext(ctx, "audit member update", "error", err)
+		}
+	}
+	return member, nil
 }
 
 func (s *Service) RotateInvite(ctx context.Context, scope Scope) (map[string]string, error) {

@@ -74,6 +74,8 @@ func (s *Service) Decide(ctx context.Context, scope groups.Scope, user users.Use
 	} else if err != nil {
 		return LoanView{}, err
 	}
+	s.notifyLoanUpdate(ctx, scope.Group.ID, row.UserID, row.PublicID,
+		"Loan "+decision, "The committee "+decision+" your loan request.", "decision:"+decision)
 	return s.Detail(ctx, scope.Group.ID, publicID, user.ID, true)
 }
 
@@ -106,6 +108,8 @@ func (s *Service) Disburse(ctx context.Context, scope groups.Scope, user users.U
 	} else if err != nil {
 		return LoanView{}, err
 	}
+	s.notifyLoanUpdate(ctx, scope.Group.ID, row.UserID, row.PublicID,
+		"Loan disbursed", "Your loan of "+centsString(row.PrincipalCents)+" has been disbursed.", "disbursed")
 	return s.Detail(ctx, scope.Group.ID, publicID, user.ID, true)
 }
 
@@ -154,6 +158,9 @@ func (s *Service) Repay(ctx context.Context, scope groups.Scope, user users.User
 	if outcome.FullyPaid {
 		status = "fully_paid"
 	}
+	s.notifyLoanUpdate(ctx, scope.Group.ID, row.UserID, row.PublicID,
+		"Loan repayment recorded", centsString(int64(amount))+" was added to your loan.",
+		"repayment:"+outcome.TransactionID.String())
 	return RepaymentView{
 		LoanID: publicID.String(), Amount: centsString(int64(amount)),
 		PaidToDate:  centsString(row.PaidCents + int64(amount)),

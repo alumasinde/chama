@@ -107,7 +107,7 @@ WHERE group_id = sqlc.arg(group_id)
   AND public_id = sqlc.arg(public_id)
   AND status_id = (SELECT fs2.id FROM fine_statuses fs2 WHERE fs2.code = 'unpaid');
 
--- name: CreateEvaluatedFines :execrows
+-- name: CreateEvaluatedFines :many
 INSERT INTO fines (
     group_id, user_id, fine_rule_id, fine_type_id, amount, reason, status_id,
     period_label, assessed_on
@@ -144,7 +144,8 @@ WHERE fr.group_id = sqlc.arg(group_id)
         AND t.created_at >= sqlc.arg(period_start)::timestamptz
         AND t.created_at < sqlc.arg(period_end)::timestamptz
   )
-ON CONFLICT DO NOTHING;
+ON CONFLICT DO NOTHING
+RETURNING public_id, user_id, (round(amount * 100))::bigint AS amount_cents;
 
 -- name: GetFineGroup :one
 SELECT g.id, g.public_id,
