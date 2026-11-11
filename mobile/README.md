@@ -15,7 +15,7 @@ The default API origin is `http://localhost:8081` on iOS/desktop and
 backend:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://192.168.1.50:8081
+flutter run --dart-define=API_BASE_URL=http://192.168.100.11:8080
 ```
 
 The development OTP is returned by the API and shown under the code field when

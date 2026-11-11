@@ -72,6 +72,14 @@ export type PaymentSettings = {
   callback_url?: string;
 };
 
+export type ManualContribution = {
+  transaction_id: string;
+  member_id: string;
+  amount: string;
+  reference: string;
+  recorded_at: string;
+};
+
 export type StkResult = {
   payment_request_id: string;
   checkout_request_id: string;

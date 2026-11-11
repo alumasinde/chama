@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ApiFailure, api } from '../lib/api';
-  import { activeGroup, session } from '../lib/session.svelte';
+  import { activeGroup, canManagePayments, session } from '../lib/session.svelte';
   import { money, dateTime, number, titleCase, tone } from '../lib/format';
   import { inviteLink } from '../lib/invite';
   import type { View } from '../lib/nav';
@@ -8,6 +8,7 @@
   import Icon from '../components/Icon.svelte';
   import ExportButtons from '../components/ExportButtons.svelte';
   import PayIn from './PayIn.svelte';
+  import ManualPayment from './ManualPayment.svelte';
 
   let { onnav }: { onnav: (view: View) => void } = $props();
 
@@ -20,6 +21,7 @@
   let error = $state('');
   let copied = $state(false);
   let paying = $state(false);
+  let recording = $state(false);
 
   const greeting = $derived.by(() => {
     const hour = new Date().getHours();
@@ -93,7 +95,13 @@
     <button class="btn btn-secondary" type="button" onclick={() => onnav('reports')} disabled={!canReports}>
       <Icon name="reports" size={17} /> Reports
     </button>
-    <button class="btn btn-green" type="button" onclick={() => (paying = true)}>
+    <button
+      class="btn btn-green"
+      type="button"
+      onclick={() => (recording = true)}
+      disabled={!canManagePayments()}
+      title={canManagePayments() ? 'Record an M-Pesa receipt the treasurer already received' : 'Admins and treasurers only'}
+    >
       <Icon name="plus" size={18} /> Record payment
     </button>
   </div>
@@ -249,4 +257,8 @@
 
 {#if paying}
   <PayIn onclose={() => { paying = false; void load(); }} />
+{/if}
+
+{#if recording}
+  <ManualPayment onclose={() => { recording = false; void load(); }} onrecorded={() => void load()} />
 {/if}

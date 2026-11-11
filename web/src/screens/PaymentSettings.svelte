@@ -104,7 +104,10 @@
   {:else if settings?.is_verified}
     <p class="notice">Shortcode verified {settings.verified_at ? new Date(settings.verified_at).toLocaleDateString('en-KE') : ''}.</p>
   {:else}
-    <p class="notice">Saved but not verified. Verification with a live Daraja call arrives with the payments phase.</p>
+    <p class="notice">
+      Saved but not verified yet. Run <strong>Verify</strong> in the Chama app, then send a KES 1 test prompt, before
+      telling members to pay.
+    </p>
   {/if}
 
   {#if error}<p class="error">{error}</p>{/if}
