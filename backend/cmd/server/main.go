@@ -97,6 +97,9 @@ func run() error {
 		}
 		paymentProvider = daraja
 	}
+	if verifier, ok := paymentProvider.(groups.CredentialVerifier); ok {
+		groupsSvc.SetCredentialVerifier(verifier)
+	}
 	paymentsSvc := payments.NewService(payments.NewRepository(pool), groupsSvc, paymentProvider, cfg.PublicBaseURL, log)
 	notificationSvc := notifications.NewService(notifications.NewRepository(pool),
 		notifications.NewPusher(cfg.PushProvider, cfg.FCMServerKey, log), log)

@@ -162,6 +162,17 @@ class ProfileScreen extends StatelessWidget {
                           ),
                           const Divider(height: 1, indent: 55),
                           _ProfileRow(
+                            icon: Icons.fingerprint_rounded,
+                            label: 'Fingerprint sign-in',
+                            detail: controller.biometricsEnabled
+                                ? 'Enabled'
+                                : controller.biometricsAvailable
+                                ? 'Off'
+                                : 'Not available',
+                            onTap: () => _toggleBiometrics(context),
+                          ),
+                          const Divider(height: 1, indent: 55),
+                          _ProfileRow(
                             icon: Icons.groups_outlined,
                             label: 'My chamas',
                             detail: controller.groups.length == 1
@@ -259,6 +270,28 @@ class ProfileScreen extends StatelessWidget {
     if (confirmed == true) {
       await controller.logout();
     }
+  }
+
+  Future<void> _toggleBiometrics(BuildContext context) async {
+    if (controller.biometricsEnabled) {
+      await controller.disableBiometrics();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fingerprint sign-in disabled.')),
+      );
+      return;
+    }
+    final enabled = await controller.enableBiometrics();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          enabled
+              ? 'Fingerprint sign-in enabled.'
+              : 'Fingerprint sign-in is not available or was cancelled.',
+        ),
+      ),
+    );
   }
 }
 

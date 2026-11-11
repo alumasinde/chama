@@ -21,11 +21,12 @@ type Options struct {
 }
 
 type Service struct {
-	repo    *Repository
-	cipher  *crypto.Cipher
-	log     *slog.Logger
-	opts    Options
-	auditor auditlog.Writer
+	repo     *Repository
+	cipher   *crypto.Cipher
+	log      *slog.Logger
+	opts     Options
+	auditor  auditlog.Writer
+	verifier CredentialVerifier
 }
 
 func NewService(repo *Repository, cipher *crypto.Cipher, log *slog.Logger, opts Options) *Service {
@@ -34,6 +35,9 @@ func NewService(repo *Repository, cipher *crypto.Cipher, log *slog.Logger, opts 
 
 // SetAuditor is optional so unit tests and embedded deployments still work.
 func (s *Service) SetAuditor(auditor auditlog.Writer) { s.auditor = auditor }
+
+// SetCredentialVerifier is optional so tests and embedded deployments still work.
+func (s *Service) SetCredentialVerifier(verifier CredentialVerifier) { s.verifier = verifier }
 
 func (s *Service) Create(ctx context.Context, user users.User, in CreateInput) (View, error) {
 	p, err := normalizeGroupInput(in)

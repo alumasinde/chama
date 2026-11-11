@@ -108,7 +108,7 @@ record-keeper who is not a signatory.
 | PATCH | `/groups/{groupId}/members/{userId}` | admin (`{role_code?, status_code?}`) |
 | POST | `/groups/{groupId}/invites/rotate` | admin |
 | GET · PUT | `/groups/{groupId}/payment-settings` | admin/treasurer |
-| POST | `/groups/{groupId}/payment-settings/verify` | **planned** — live Daraja verification is not mounted yet |
+| POST | `/groups/{groupId}/payment-settings/verify` | admin/treasurer (live Daraja OAuth check) |
 | GET · PUT | `/groups/{groupId}/loan-settings` | admin/treasurer |
 | GET · POST · PATCH | `/groups/{groupId}/fine-rules` | admin/treasurer |
 
@@ -117,7 +117,14 @@ account_reference_template, daraja_environment, consumer_key_masked: "•••�
 consumer_secret_masked, passkey_masked, is_verified, verified_at, updated_at}` — never a secret.
 `PUT` accepts plaintext creds over TLS and encrypts them with AES-256-GCM (AAD binds the group
 and column); omitting a secret keeps the stored value. The `callback_url` (which embeds the
-unguessable group secret) appears only in the `PUT` response that first saves it.
+unguessable group secret) appears in the `PUT` response and in the `verify` response, so the
+setup screen can show it after saving without ever returning the secret itself.
+
+`POST payment-settings/verify` decrypts the saved key pair and asks Daraja for an OAuth token in
+the chama's environment (sandbox keys are checked against `sandbox.safaricom.co.ke`, production
+keys against `api.safaricom.co.ke`). Success sets `is_verified` and `verified_at`; a rejection
+returns `422 mpesa_verification_failed`, and any later `PUT` clears the flag. A server with no
+verifier returns `503 verification_unavailable`.
 
 `GET /invites/{code}` is the public preview used by `/join/{code}`; it returns only the chama
 name, inviting admin's first name, active member count and contribution terms. Invalid or
@@ -156,6 +163,8 @@ narration}`. Rejection reasons are explicit (`amount_exceeds_expected`, `period_
 | Method | Path | Role |
 |---|---|---|
 | POST | `/groups/{groupId}/payments/stk` | member (idempotent, step-up) |
+| POST | `/groups/{groupId}/payments/manual` | admin/treasurer (`payment.record`, step-up) |
+| POST | `/groups/{groupId}/payments/test` | admin/treasurer (`payment_settings.write`, step-up) |
 | GET | `/groups/{groupId}/payments/requests` | member (own) / treasurer (all) |
 | POST | `/groups/{groupId}/payments/{requestId}/reconcile` | treasurer |
 | POST | `/payments/mpesa/callback/{groupPublicId}/{callbackSecret}` | public, secret-authenticated |
@@ -169,6 +178,22 @@ replaying the same key and body returns the original `202`, a different body ret
 202 response: `{payment_request_id, checkout_request_id, status: "pending", amount, purpose}`.
 Amounts must be whole shillings (`422 amount_not_whole_shillings`); missing credentials return
 `422 payment_settings_missing`, and a Daraja rejection returns `502 provider_error`.
+
+The test route sends a real KES 1 STK to the manager's own phone so the shortcode, passkey and
+environment can be proven before members are asked to pay. It deliberately writes no ledger row:
+the KES 1 lands in the chama's account and the callback finds no payment request, so nothing
+settles. Returns `202 {checkout_request_id, amount: "1.00", message}`; a Daraja rejection is
+`502 provider_error`, and missing settings are `422 payment_settings_missing`. The account
+reference is `SETUP-TEST`.
+
+The manual route records a contribution the treasurer already received. Body:
+`{member_id, amount, reference, narration?}`, where `member_id` is the member's `user_id` and
+`reference` is the M-Pesa code (6–24 letters and digits, case-insensitive). It writes one
+completed `contribution` row on the `mpesa_manual` channel with `recorded_by` set, requires an
+active membership, and returns `201 {transaction_id, member_id, amount, reference,
+recorded_at}`. A duplicate code within the chama returns `409 reference_already_recorded`; a
+non-active member returns `422` with a `member_id` field error. The settled hook fires, so the
+member gets the usual payment notification.
 
 STK uses the chama's own Till/Paybill and credentials, with account reference template
 tokens `{member_short}` and `{period}`. A pending ledger row and the payment request are

@@ -55,15 +55,14 @@ counting up — show the real number immediately.
 
 ## 2. Mobile information architecture (Flutter)
 
-Bottom navigation, 5 tabs, labels always visible (no icon-only), following
+Bottom navigation, 4 tabs, labels always visible (no icon-only), following
 [`UI-REFERENCE.md`](UI-REFERENCE.md):
 
-`Home · Chamas · Marketplace · Wallet · Profile`
+`Home · Chamas · Wallet · Profile`
 
 ```
 Home        greeting, total savings, quick actions, my chamas, recent activity
 Chamas      group list/detail, members, contributions, loans, rotation, welfare
-Marketplace product/service discovery and listing detail (UX direction; backend future)
 Wallet      available balance, deposit/withdraw, transactions
 Profile     personal details, PIN, biometrics, password, notifications, language, logout
 ```

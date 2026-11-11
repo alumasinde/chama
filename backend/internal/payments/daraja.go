@@ -17,6 +17,11 @@ import (
 
 const darajaTimeout = 20 * time.Second
 
+const (
+	darajaSandboxBase    = "https://sandbox.safaricom.co.ke"
+	darajaProductionBase = "https://api.safaricom.co.ke"
+)
+
 var eastAfrica = time.FixedZone("EAT", 3*60*60)
 
 type cachedToken struct {
@@ -62,7 +67,12 @@ func isLoopbackHost(host string) bool {
 
 // endpoint joins a fixed path onto the validated base URL.
 func (d *Daraja) endpoint(path string, query url.Values) string {
-	u := *d.base
+	return joinEndpoint(d.base, path, query)
+}
+
+// joinEndpoint copies a validated base so a path can never escape its host.
+func joinEndpoint(base *url.URL, path string, query url.Values) string {
+	u := *base
 	u.Path = strings.TrimSuffix(u.Path, "/") + path
 	if len(query) > 0 {
 		u.RawQuery = query.Encode()
@@ -120,7 +130,44 @@ func (d *Daraja) RequestSTK(ctx context.Context, req STKRequest) (STKResponse, e
 
 // accessToken caches OAuth tokens per consumer key for 55 minutes.
 func (d *Daraja) accessToken(ctx context.Context, key, secret string) (string, error) {
-	cacheKey := key
+	return d.accessTokenFor(ctx, d.base, key, secret)
+}
+
+// VerifyCredentials proves Daraja accepts a chama's key pair, which is the only
+// setup check available without moving money.
+func (d *Daraja) VerifyCredentials(ctx context.Context, environment, consumerKey, consumerSecret string) error {
+	if strings.TrimSpace(consumerKey) == "" || strings.TrimSpace(consumerSecret) == "" {
+		return fmt.Errorf("%w: missing credentials", ErrProviderUnavailable)
+	}
+	token, err := d.accessTokenFor(ctx, d.verificationBase(environment), consumerKey, consumerSecret)
+	if err != nil {
+		return err
+	}
+	if token == "" {
+		return fmt.Errorf("%w: empty access token", ErrProviderUnavailable)
+	}
+	return nil
+}
+
+// verificationBase keeps sandbox and production keys on their own host. Loopback
+// bases are used as given so tests and local fakes can verify too.
+func (d *Daraja) verificationBase(environment string) *url.URL {
+	if isLoopbackHost(d.base.Hostname()) {
+		return d.base
+	}
+	raw := darajaProductionBase
+	if environment == "sandbox" {
+		raw = darajaSandboxBase
+	}
+	parsed, err := url.Parse(raw + "/")
+	if err != nil {
+		return d.base
+	}
+	return parsed
+}
+
+func (d *Daraja) accessTokenFor(ctx context.Context, base *url.URL, key, secret string) (string, error) {
+	cacheKey := base.Host + "|" + key
 	d.mu.Lock()
 	if cached, ok := d.tokens[cacheKey]; ok && cached.expires.After(time.Now()) {
 		d.mu.Unlock()
@@ -128,7 +175,7 @@ func (d *Daraja) accessToken(ctx context.Context, key, secret string) (string, e
 	}
 	d.mu.Unlock()
 
-	endpoint := d.endpoint("/oauth/v1/generate", url.Values{"grant_type": {"client_credentials"}})
+	endpoint := joinEndpoint(base, "/oauth/v1/generate", url.Values{"grant_type": {"client_credentials"}})
 	//nolint:gosec // the host is operator configuration, validated in NewDaraja; the path is fixed.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {

@@ -6,6 +6,7 @@ import '../core/app_state.dart';
 import '../core/format.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'receipt_dialog.dart';
 
 Future<void> showContributeSheet(
   BuildContext context,
@@ -50,8 +51,6 @@ class _ContributeSheetState extends State<_ContributeSheet> {
   );
   String? _error;
   bool _busy = false;
-  bool _done = false;
-  StkResult? _result;
 
   String get _title => switch (widget.purpose) {
     'fine' => 'Pay fine',
@@ -96,10 +95,13 @@ class _ContributeSheetState extends State<_ContributeSheet> {
         purpose: widget.purpose,
       );
       if (!mounted) return;
-      setState(() {
-        _result = result;
-        _done = true;
-      });
+      await showPaymentReceipt(
+        context,
+        group: widget.group,
+        result: result,
+        phone: widget.controller.user?.phoneNumber,
+      );
+      if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = _paymentMessage(error));
@@ -117,11 +119,7 @@ class _ContributeSheetState extends State<_ContributeSheet> {
         20,
         MediaQuery.viewInsetsOf(context).bottom + 24,
       ),
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-        child: _done ? _success() : _form(),
-      ),
+      child: _form(),
     );
   }
 
@@ -280,63 +278,6 @@ class _ContributeSheetState extends State<_ContributeSheet> {
               fontSize: 10.5,
               fontWeight: FontWeight.w600,
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _success() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(height: 18),
-        Container(
-          width: 66,
-          height: 66,
-          decoration: const BoxDecoration(
-            color: ChamaColors.greenSoft,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.check_rounded,
-            color: ChamaColors.green,
-            size: 34,
-          ),
-        ),
-        const SizedBox(height: 17),
-        const Text(
-          'Check your phone',
-          style: TextStyle(
-            color: ChamaColors.ink,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Enter your M-Pesa PIN to complete the payment.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: ChamaColors.muted, fontSize: 13.5),
-        ),
-        if (_result != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            money(_result!.amount),
-            style: const TextStyle(
-              color: ChamaColors.ink,
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
-        const SizedBox(height: 22),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Done'),
           ),
         ),
       ],

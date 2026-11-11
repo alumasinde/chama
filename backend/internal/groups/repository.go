@@ -236,6 +236,13 @@ func (r *Repository) UpsertPaymentSettings(ctx context.Context, p store.UpsertPa
 	return r.q.UpsertPaymentSettings(ctx, p)
 }
 
+func (r *Repository) MarkPaymentSettingsVerified(ctx context.Context, groupID, actorID int64) error {
+	return r.q.MarkPaymentSettingsVerified(ctx, store.MarkPaymentSettingsVerifiedParams{
+		GroupID:   groupID,
+		UpdatedBy: &actorID,
+	})
+}
+
 func groupFromRow(id int64, publicID uuid.UUID, name, inviteCode string, description *string,
 	cents int64, frequency string, day int16, grace int32, createdAt time.Time) Group {
 	return Group{

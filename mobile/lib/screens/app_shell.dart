@@ -4,7 +4,6 @@ import '../core/app_state.dart';
 import '../core/theme.dart';
 import 'chamas_screen.dart';
 import 'home_screen.dart';
-import 'marketplace_screen.dart';
 import 'profile_screen.dart';
 import 'wallet_screen.dart';
 
@@ -26,9 +25,11 @@ class _AppShellState extends State<AppShell> {
       body: IndexedStack(
         index: _index,
         children: [
-          HomeScreen(controller: widget.controller, onOpenChamas: () => _select(1)),
+          HomeScreen(
+            controller: widget.controller,
+            onOpenChamas: () => _select(1),
+          ),
           ChamasScreen(controller: widget.controller),
-          MarketplaceScreen(onOpenChamas: () => _select(1)),
           WalletScreen(controller: widget.controller),
           ProfileScreen(
             controller: widget.controller,
@@ -53,11 +54,6 @@ class _AppShellState extends State<AppShell> {
               icon: Icon(Icons.groups_outlined),
               selectedIcon: Icon(Icons.groups_rounded),
               label: 'Chamas',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.storefront_outlined),
-              selectedIcon: Icon(Icons.storefront_rounded),
-              label: 'Marketplace',
             ),
             NavigationDestination(
               icon: Icon(Icons.account_balance_wallet_outlined),

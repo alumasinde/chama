@@ -517,3 +517,70 @@ func (q *Queries) SettleTransaction(ctx context.Context, arg SettleTransactionPa
 	)
 	return i, err
 }
+
+const recordManualContribution = `-- name: RecordManualContribution :one
+INSERT INTO transactions (
+    group_id, user_id, transaction_type_id, status_id, channel_id,
+    amount, reference_code, narration, recorded_by, completed_at
+)
+SELECT
+    $1,
+    gm.user_id,
+    (SELECT t.id FROM transaction_types t WHERE t.code = 'contribution'),
+    (SELECT s.id FROM transaction_statuses s WHERE s.code = 'completed'),
+    (SELECT c.id FROM payment_channels c WHERE c.code = $2),
+    ($3::bigint / 100.0)::numeric(15,2),
+    $4,
+    $5,
+    $6,
+    now()
+FROM group_members gm
+JOIN member_statuses ms ON ms.id = gm.status_id
+WHERE gm.group_id = $1
+  AND gm.user_id = (SELECT u.id FROM users u WHERE u.public_id = $7)
+  AND ms.code = 'active'
+RETURNING id, public_id, user_id, reference_code, narration, created_at, completed_at
+`
+
+type RecordManualContributionParams struct {
+	GroupID        int64
+	Channel        string
+	AmountCents    int64
+	ReferenceCode  string
+	Narration      string
+	RecordedBy     *int64
+	MemberPublicID uuid.UUID
+}
+
+type RecordManualContributionRow struct {
+	ID            int64
+	PublicID      uuid.UUID
+	UserID        int64
+	ReferenceCode *string
+	Narration     string
+	CreatedAt     time.Time
+	CompletedAt   *time.Time
+}
+
+func (q *Queries) RecordManualContribution(ctx context.Context, arg RecordManualContributionParams) (RecordManualContributionRow, error) {
+	row := q.db.QueryRow(ctx, recordManualContribution,
+		arg.GroupID,
+		arg.Channel,
+		arg.AmountCents,
+		arg.ReferenceCode,
+		arg.Narration,
+		arg.RecordedBy,
+		arg.MemberPublicID,
+	)
+	var i RecordManualContributionRow
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.UserID,
+		&i.ReferenceCode,
+		&i.Narration,
+		&i.CreatedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}

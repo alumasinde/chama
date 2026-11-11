@@ -10,8 +10,13 @@ func TestCapabilities(t *testing.T) {
 	}{
 		{"admin", PermMemberManage, true},
 		{"admin", PermPaymentSettingsWrite, true},
+		{"admin", PermPaymentRecord, true},
 		{"treasurer", PermPaymentSettingsWrite, true},
+		{"treasurer", PermPaymentRecord, true},
 		{"treasurer", PermMemberManage, false},
+		{"secretary", PermPaymentRecord, false},
+		{"secretary", PermPaymentSettingsWrite, false},
+		{"member", PermPaymentRecord, false},
 		{"secretary", PermMemberRead, true},
 		{"secretary", PermGroupUpdate, false},
 		{"member", PermMemberRead, true},

@@ -22,11 +22,7 @@ class SplashScreen extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-              const BrandLockup(
-                onDark: true,
-                markSize: 64,
-                showTagline: false,
-              ),
+              const BrandLockup(onDark: true, markSize: 64, showTagline: false),
               const SizedBox(height: 18),
               const Text(
                 'Together · Save · Grow',

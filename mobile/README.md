@@ -30,5 +30,6 @@ flutter test
 
 The app currently covers sign-in/registration, the chama dashboard, chama details, members,
 ledger, loans, welfare, wallet balances, notifications, profile, joining and creating a chama,
-and M-Pesa contribution confirmation with PIN step-up. Marketplace is present in the navigation
-but intentionally has no listings until its backend ships.
+fines, rotation, loan requests and guarantees, welfare claims, and M-Pesa payments with PIN
+step-up and centered receipts. Fingerprint sign-in is available on supported Android, iOS,macOS and Windows devices; the web build falls back to phone-number sign-in. Managers can connect the chama's own M-Pesa
+shortcode (paybill or till) in the app and record payments the treasurer received outside it.

@@ -33,6 +33,57 @@ func (r *Repository) PaymentSettings(ctx context.Context, groupID int64) (store.
 	return row, err
 }
 
+// ErrMemberNotActive means the chosen member is missing, exited or suspended.
+var ErrMemberNotActive = errors.New("member is not active")
+
+// ErrReferenceRecorded means the M-Pesa code already exists in this chama's ledger.
+var ErrReferenceRecorded = errors.New("reference already recorded")
+
+type ManualParams struct {
+	GroupID        int64
+	MemberPublicID uuid.UUID
+	AmountCents    int64
+	ReferenceCode  string
+	Narration      string
+	RecordedBy     int64
+}
+
+// ManualContribution is the ledger row a treasurer's manual entry produced.
+type ManualContribution struct {
+	ID            int64
+	TransactionID uuid.UUID
+	UserID        int64
+	CreatedAt     time.Time
+}
+
+// RecordManualContribution settles a contribution the chama already received.
+func (r *Repository) RecordManualContribution(ctx context.Context, p ManualParams) (ManualContribution, error) {
+	row, err := r.q.RecordManualContribution(ctx, store.RecordManualContributionParams{
+		GroupID:        p.GroupID,
+		Channel:        "mpesa_manual",
+		AmountCents:    p.AmountCents,
+		ReferenceCode:  p.ReferenceCode,
+		Narration:      p.Narration,
+		RecordedBy:     &p.RecordedBy,
+		MemberPublicID: p.MemberPublicID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ManualContribution{}, ErrMemberNotActive
+	}
+	if isDuplicateReference(err) {
+		return ManualContribution{}, ErrReferenceRecorded
+	}
+	if err != nil {
+		return ManualContribution{}, err
+	}
+	return ManualContribution{
+		ID:            row.ID,
+		TransactionID: row.PublicID,
+		UserID:        row.UserID,
+		CreatedAt:     row.CreatedAt,
+	}, nil
+}
+
 type PendingRequest struct {
 	TransactionID int64
 	PublicID      uuid.UUID

@@ -16,7 +16,6 @@
   import Audit from './Audit.svelte';
   import PaymentSettings from './PaymentSettings.svelte';
   import Profile from './Profile.svelte';
-  import Marketplace from './Marketplace.svelte';
   import CreateGroup from './CreateGroup.svelte';
   import JoinGroup from './JoinGroup.svelte';
 
@@ -261,8 +260,6 @@
         <PaymentSettings />
       {:else if view === 'profile'}
         <Profile onnav={go} />
-      {:else}
-        <Marketplace />
       {/if}
     </section>
   </div>

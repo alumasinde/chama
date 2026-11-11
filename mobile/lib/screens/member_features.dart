@@ -56,7 +56,7 @@ class _FinesScreenState extends State<FinesScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _LoadingList();
+            return const LoadingList();
           }
           if (snapshot.hasError) {
             return ErrorState(
@@ -327,7 +327,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _LoadingList();
+            return const LoadingList();
           }
           if (snapshot.hasError) {
             return ErrorState(
@@ -722,7 +722,7 @@ class _RotationScreenState extends State<RotationScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _LoadingList();
+            return const LoadingList();
           }
           if (snapshot.hasError) {
             return ErrorState(
@@ -1857,24 +1857,6 @@ class _DetailRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _LoadingList extends StatelessWidget {
-  const _LoadingList();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        SkeletonCard(height: 120),
-        SizedBox(height: 12),
-        SkeletonCard(height: 76),
-        SizedBox(height: 8),
-        SkeletonCard(height: 76),
-      ],
     );
   }
 }

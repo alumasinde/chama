@@ -61,15 +61,14 @@ navigation is white, purple for the active tab, with label under every icon.
 
 Canonical bottom navigation (take the second image’s order):
 
-`Home · Chamas · Marketplace · Wallet · Profile`
+`Home · Chamas · Wallet · Profile`
 
-The first image shows `Home · Chamas · Wallet · Marketplace · Profile`; that ordering is an
-alternate, not the target. All five tabs always show labels.
+All four tabs always show labels. Marketplace appeared in the early mockups but is not part of
+the app.
 
 ```
 Home        greeting, total savings, quick actions, my chamas, recent activity
 Chamas      group list, group detail, members, contributions, loans, rotation, activity
-Marketplace product/service discovery, listing detail, buy/sell (future phase)
 Wallet      available balance, deposit/withdraw, transactions
 Profile     edit profile, my chamas, my loans, history, notifications, settings, help, logout
 ```
@@ -158,17 +157,6 @@ Back arrow, **Request Loan**. Amount field with Ksh prefix. Duration chips **1M 
 selected purple. Purpose dropdown. Summary panel: Monthly Repayment, interest, total. Full-width
 purple **Submit Request**. Inputs are large and touch-friendly; no dense table until approval.
 
-### 3.11 Marketplace
-
-Header **Marketplace** with menu/search (or back arrow). Hero panel: “Buy & Sell Easily on
-Chama — From smartphones to household items.” + purple **Shop Now**, product illustration.
-Category circles: Phones, Electronics, Home & Living, Fashion. **Featured Products** two-column
-grid with photo, name, price, purple cart button and **View**. First variant uses tabs
-**Products | Services**, with tomatoes, shoes, phone and chair listings.
-
-Marketplace is part of the product direction but has no backend in Phase 5; do not invent
-escrow, checkout or holding of funds for it.
-
 ### 3.12 Wallet
 
 Back arrow, **My Wallet**. Purple gradient **Available Balance Ksh 12,500** (variant: Ksh 8,750)
@@ -217,6 +205,6 @@ marketing carousels and cross-sell noise.
 ## 6. Deliberate differences from the current design system
 
 - Purple replaces deep green as the brand surface; green becomes the action/positive colour.
-- The bottom navigation is the mockups’ five tabs, not `Home · Money · Loans · Group · Profile`.
+- The bottom navigation is the four tabs above, not `Home · Money · Loans · Group · Profile`.
 - Group detail is a hero-photo screen with four action tiles, not a settings-like page.
-- Marketplace is a first-class tab in the UX direction, even though its backend is future work.
+- The mockups’ Marketplace tab is dropped rather than shipped as an empty screen.

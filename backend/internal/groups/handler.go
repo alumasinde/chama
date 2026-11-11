@@ -200,3 +200,22 @@ func (h *Handler) putPaymentSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.Respond(w, http.StatusOK, view)
 }
+
+func (h *Handler) verifyPaymentSettings(w http.ResponseWriter, r *http.Request) {
+	scope, ok := ScopeFrom(r.Context())
+	if !ok {
+		httpx.Fail(w, r, httpx.NotFound("Chama not found."))
+		return
+	}
+	actor, err := users.MustUser(r.Context())
+	if err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	view, err := h.svc.VerifyPaymentSettings(r.Context(), scope, actor.ID)
+	if err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	httpx.Respond(w, http.StatusOK, view)
+}

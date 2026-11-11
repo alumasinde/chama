@@ -479,6 +479,96 @@ class Fine {
   );
 }
 
+class PaymentSettings {
+  const PaymentSettings({
+    required this.configured,
+    required this.shortcodeType,
+    required this.shortcode,
+    required this.accountReferenceTemplate,
+    required this.darajaEnvironment,
+    required this.consumerKeyMasked,
+    required this.consumerSecretMasked,
+    required this.passkeyMasked,
+    required this.isVerified,
+    this.verifiedAt,
+    this.callbackUrl = '',
+  });
+
+  final bool configured;
+  final String shortcodeType;
+  final String shortcode;
+  final String accountReferenceTemplate;
+  final String darajaEnvironment;
+  final String consumerKeyMasked;
+  final String consumerSecretMasked;
+  final String passkeyMasked;
+  final bool isVerified;
+  final String? verifiedAt;
+  final String callbackUrl;
+
+  factory PaymentSettings.fromJson(Map<String, dynamic> json) =>
+      PaymentSettings(
+        configured: json['configured'] == true,
+        shortcodeType: _string(json, 'shortcode_type', 'paybill'),
+        shortcode: _string(json, 'shortcode'),
+        accountReferenceTemplate: _string(
+          json,
+          'account_reference_template',
+          'CHAMA-{member_short}-{period}',
+        ),
+        darajaEnvironment: _string(json, 'daraja_environment', 'sandbox'),
+        consumerKeyMasked: _string(json, 'consumer_key_masked'),
+        consumerSecretMasked: _string(json, 'consumer_secret_masked'),
+        passkeyMasked: _string(json, 'passkey_masked'),
+        isVerified: json['is_verified'] == true,
+        verifiedAt: json['verified_at']?.toString(),
+        callbackUrl: _string(json, 'callback_url'),
+      );
+}
+
+class TestCollection {
+  const TestCollection({
+    required this.checkoutRequestId,
+    required this.amount,
+    required this.message,
+  });
+
+  final String checkoutRequestId;
+  final String amount;
+  final String message;
+
+  factory TestCollection.fromJson(Map<String, dynamic> json) => TestCollection(
+    checkoutRequestId: _string(json, 'checkout_request_id'),
+    amount: _string(json, 'amount', '1.00'),
+    message: _string(json, 'message'),
+  );
+}
+
+class ManualContribution {
+  const ManualContribution({
+    required this.transactionId,
+    required this.memberId,
+    required this.amount,
+    required this.reference,
+    required this.recordedAt,
+  });
+
+  final String transactionId;
+  final String memberId;
+  final String amount;
+  final String reference;
+  final String recordedAt;
+
+  factory ManualContribution.fromJson(Map<String, dynamic> json) =>
+      ManualContribution(
+        transactionId: _string(json, 'transaction_id'),
+        memberId: _string(json, 'member_id'),
+        amount: _string(json, 'amount', '0.00'),
+        reference: _string(json, 'reference'),
+        recordedAt: _string(json, 'recorded_at'),
+      );
+}
+
 class LoanSettings {
   const LoanSettings({
     required this.allowLoans,

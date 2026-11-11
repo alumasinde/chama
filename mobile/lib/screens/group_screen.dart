@@ -6,7 +6,10 @@ import '../core/models.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
 import 'details.dart';
+import 'manual_payment_sheet.dart';
 import 'member_features.dart';
+import 'mpesa_setup_screen.dart';
+import 'receipt_dialog.dart';
 import 'sheets.dart';
 
 class GroupScreen extends StatefulWidget {
@@ -32,6 +35,28 @@ class _GroupScreenState extends State<GroupScreen> {
     setState(() {
       _future = widget.controller.loadGroupBundle(widget.group.id);
     });
+  }
+
+  Future<void> _recordPayment(List<Member> members) async {
+    final saved = await showManualContributionSheet(
+      context,
+      widget.controller,
+      widget.group,
+      members.where((member) => member.status == 'active').toList(),
+    );
+    if (saved == true && mounted) _reload();
+  }
+
+  Future<void> _openMpesaSetup() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MpesaSetupScreen(
+          controller: widget.controller,
+          group: widget.group,
+        ),
+      ),
+    );
+    if (mounted) _reload();
   }
 
   @override
@@ -175,6 +200,14 @@ class _GroupScreenState extends State<GroupScreen> {
                         ),
                       ),
                     ),
+                    if (widget.group.canManage)
+                      QuickAction(
+                        icon: Icons.payments_outlined,
+                        label: 'M-Pesa',
+                        color: ChamaColors.warningSoft,
+                        iconColor: ChamaColors.warning,
+                        onTap: _openMpesaSetup,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -215,7 +248,10 @@ class _GroupScreenState extends State<GroupScreen> {
                       : Column(
                           children: [
                             for (final entry in bundle.transactions.take(5))
-                              TransactionTile(entry: entry),
+                              TransactionTile(
+                                entry: entry,
+                                onTap: () => showLedgerReceipt(context, entry),
+                              ),
                           ],
                         ),
                 ),
@@ -229,6 +265,17 @@ class _GroupScreenState extends State<GroupScreen> {
                   icon: const Icon(Icons.add_card_rounded, size: 18),
                   label: const Text('Make a contribution'),
                 ),
+                if (widget.group.canManage) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _recordPayment(bundle.members),
+                    icon: const Icon(
+                      Icons.playlist_add_check_rounded,
+                      size: 18,
+                    ),
+                    label: const Text('Record a payment'),
+                  ),
+                ],
               ],
             ),
           );

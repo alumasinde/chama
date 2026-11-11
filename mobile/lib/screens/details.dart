@@ -6,6 +6,7 @@ import '../core/models.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
 import 'member_features.dart';
+import 'receipt_dialog.dart';
 
 class MembersScreen extends StatefulWidget {
   const MembersScreen({
@@ -48,7 +49,7 @@ class _MembersScreenState extends State<MembersScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _SimpleLoading();
+            return const LoadingList();
           }
           if (snapshot.hasError) {
             return ErrorState(
@@ -158,7 +159,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _SimpleLoading();
+            return const LoadingList();
           }
           if (snapshot.hasError) {
             return ErrorState(
@@ -244,47 +245,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   void _showEntry(BuildContext context, LedgerEntry entry) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              transactionTitle(entry.type),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 5),
-            Text(
-              longDate(entry.createdAt),
-              style: const TextStyle(color: ChamaColors.muted, fontSize: 12),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              transactionSignedAmount(entry.type, entry.amount),
-              style: const TextStyle(
-                color: ChamaColors.ink,
-                fontSize: 27,
-                fontWeight: FontWeight.w800,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-            const SizedBox(height: 18),
-            _DetailRow(label: 'Member', value: entry.member),
-            _DetailRow(label: 'Status', value: titleCase(entry.status)),
-            if (entry.referenceCode != null)
-              _DetailRow(label: 'Reference', value: entry.referenceCode!),
-            if (entry.channel != null)
-              _DetailRow(label: 'Channel', value: titleCase(entry.channel!)),
-            if (entry.periodLabel != null)
-              _DetailRow(label: 'Period', value: entry.periodLabel!),
-          ],
-        ),
-      ),
-    );
+    showLedgerReceipt(context, entry);
   }
 }
 
@@ -368,7 +329,7 @@ class _LoansScreenState extends State<LoansScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _SimpleLoading();
+            return const LoadingList();
           }
           if (snapshot.hasError) {
             return ErrorState(
@@ -613,7 +574,7 @@ class _WelfareScreenState extends State<WelfareScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const _SimpleLoading();
+            return const LoadingList();
           }
           if (snapshot.hasError) {
             return ErrorState(
@@ -789,59 +750,6 @@ class _FilterChip extends StatelessWidget {
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 92,
-            child: Text(
-              label,
-              style: const TextStyle(color: ChamaColors.muted, fontSize: 12),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: ChamaColors.ink,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SimpleLoading extends StatelessWidget {
-  const _SimpleLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        SkeletonCard(height: 76),
-        SizedBox(height: 8),
-        SkeletonCard(height: 76),
-        SizedBox(height: 8),
-        SkeletonCard(height: 76),
-      ],
     );
   }
 }

@@ -9,6 +9,7 @@ const (
 	PermInviteRotate         = "invite.rotate"
 	PermPaymentSettingsRead  = "payment_settings.read"
 	PermPaymentSettingsWrite = "payment_settings.write"
+	PermPaymentRecord        = "payment.record"
 	PermLoanSettingsWrite    = "loan_settings.write"
 	PermLoanApply            = "loan.apply"
 	PermLoanManage           = "loan.manage"
@@ -33,6 +34,7 @@ var roleCapabilities = map[string]map[string]bool{
 		PermGroupRead: true, PermGroupUpdate: true, PermMemberRead: true,
 		PermMemberManage: true, PermInviteRotate: true,
 		PermPaymentSettingsRead: true, PermPaymentSettingsWrite: true,
+		PermPaymentRecord:     true,
 		PermLoanSettingsWrite: true, PermLoanApply: true, PermLoanManage: true,
 		PermLoanDisburse: true, PermLoanRepay: true,
 		PermFineRulesWrite: true, PermFineManage: true, PermFinePay: true,
@@ -44,6 +46,7 @@ var roleCapabilities = map[string]map[string]bool{
 	"treasurer": {
 		PermGroupRead: true, PermMemberRead: true,
 		PermPaymentSettingsRead: true, PermPaymentSettingsWrite: true,
+		PermPaymentRecord:     true,
 		PermLoanSettingsWrite: true, PermLoanApply: true, PermLoanManage: true,
 		PermLoanDisburse: true, PermLoanRepay: true,
 		PermFineRulesWrite: true, PermFineManage: true, PermFinePay: true,

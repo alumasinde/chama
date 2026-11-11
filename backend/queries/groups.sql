@@ -183,3 +183,8 @@ SET shortcode_type_id = EXCLUDED.shortcode_type_id,
     verified_at = NULL,
     updated_by = EXCLUDED.updated_by,
     updated_at = now();
+
+-- name: MarkPaymentSettingsVerified :exec
+UPDATE group_payment_settings
+SET is_verified = TRUE, verified_at = now(), updated_by = sqlc.arg(updated_by)
+WHERE group_id = sqlc.arg(group_id);

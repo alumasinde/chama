@@ -94,6 +94,49 @@ func (h *Handler) getTransaction(w http.ResponseWriter, r *http.Request) {
 	httpx.Respond(w, http.StatusOK, view)
 }
 
+func (h *Handler) sendTest(w http.ResponseWriter, r *http.Request) {
+	scope, ok := groups.ScopeFrom(r.Context())
+	if !ok {
+		httpx.Fail(w, r, httpx.NotFound("Chama not found."))
+		return
+	}
+	user, err := users.MustUser(r.Context())
+	if err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	result, err := h.svc.SendTestCollection(r.Context(), user, scope.Group)
+	if err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	httpx.Respond(w, http.StatusAccepted, result)
+}
+
+func (h *Handler) recordManual(w http.ResponseWriter, r *http.Request) {
+	scope, ok := groups.ScopeFrom(r.Context())
+	if !ok {
+		httpx.Fail(w, r, httpx.NotFound("Chama not found."))
+		return
+	}
+	user, err := users.MustUser(r.Context())
+	if err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	var in ManualInput
+	if err := httpx.DecodeJSON(w, r, &in); err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	result, err := h.svc.RecordManualContribution(r.Context(), user, scope.Group, in)
+	if err != nil {
+		httpx.Fail(w, r, err)
+		return
+	}
+	httpx.Respond(w, http.StatusCreated, result)
+}
+
 // Callback is public but authenticated by the per-group secret in the path.
 func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)

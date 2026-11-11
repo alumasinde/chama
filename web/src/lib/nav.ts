@@ -11,7 +11,6 @@ export const views = [
   'audit',
   'settings',
   'profile',
-  'marketplace',
 ] as const;
 
 export type View = (typeof views)[number];
@@ -38,5 +37,4 @@ export const viewTitles: Record<View, string> = {
   audit: 'Audit log',
   settings: 'M-Pesa settings',
   profile: 'Profile',
-  marketplace: 'Marketplace',
 };

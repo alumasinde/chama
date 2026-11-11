@@ -5,6 +5,7 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
 import 'details.dart';
+import 'receipt_dialog.dart';
 import 'sheets.dart';
 
 class WalletScreen extends StatelessWidget {
@@ -152,10 +153,8 @@ class WalletScreen extends StatelessWidget {
                   action: 'See all',
                   onAction: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => LedgerScreen(
-                        controller: controller,
-                        group: group,
-                      ),
+                      builder: (_) =>
+                          LedgerScreen(controller: controller, group: group),
                     ),
                   ),
                 ),
@@ -165,7 +164,12 @@ class WalletScreen extends StatelessWidget {
                     horizontal: 15,
                     vertical: 6,
                   ),
-                  child: controller.recent.isEmpty
+                  child: controller.dashboard == null && controller.homeLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: SkeletonBox(height: 105, radius: 14),
+                        )
+                      : controller.recent.isEmpty
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 18),
                           child: Center(
@@ -181,7 +185,10 @@ class WalletScreen extends StatelessWidget {
                       : Column(
                           children: [
                             for (final entry in controller.recent.take(6))
-                              TransactionTile(entry: entry),
+                              TransactionTile(
+                                entry: entry,
+                                onTap: () => showLedgerReceipt(context, entry),
+                              ),
                           ],
                         ),
                 ),

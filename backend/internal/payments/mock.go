@@ -14,6 +14,11 @@ type Mock struct{}
 
 func (m *Mock) Name() string { return "mock" }
 
+// VerifyCredentials accepts anything: mock is development-only and never moves money.
+func (m *Mock) VerifyCredentials(ctx context.Context, environment, consumerKey, consumerSecret string) error {
+	return nil
+}
+
 func (m *Mock) RequestSTK(ctx context.Context, req STKRequest) (STKResponse, error) {
 	if req.Amount <= 0 {
 		return STKResponse{}, fmt.Errorf("%w: amount must be positive", ErrProviderUnavailable)

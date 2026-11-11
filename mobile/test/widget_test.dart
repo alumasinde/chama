@@ -3,6 +3,7 @@ import 'package:chama_mobile/core/format.dart';
 import 'package:chama_mobile/core/models.dart';
 import 'package:chama_mobile/core/theme.dart';
 import 'package:chama_mobile/screens/auth_screen.dart';
+import 'package:chama_mobile/screens/receipt_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -134,5 +135,42 @@ void main() {
     expect(find.text('Phone number'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('ledger receipt opens as a centered dialog', (tester) async {
+    final entry = LedgerEntry(
+      id: 'txn-1',
+      member: 'Amina Wanjiku',
+      type: 'contribution',
+      status: 'completed',
+      amount: '1000.00',
+      narration: 'November contribution',
+      createdAt: '2026-11-10T09:00:00Z',
+      referenceCode: 'MPESA-123',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildChamaTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => showLedgerReceipt(context, entry),
+                child: const Text('Open receipt'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open receipt'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.text('Transaction receipt'), findsOneWidget);
+    expect(find.text('KES 1,000.00'), findsOneWidget);
+    expect(find.text('Close'), findsOneWidget);
   });
 }

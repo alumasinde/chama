@@ -8,6 +8,7 @@ import '../core/widgets.dart';
 import 'details.dart';
 import 'member_features.dart';
 import 'notifications_screen.dart';
+import 'receipt_dialog.dart';
 import 'sheets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -38,6 +39,10 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         if (group.isPending) {
           return _PendingChama(group: group, onOpenChamas: widget.onOpenChamas);
+        }
+        if (widget.controller.dashboard == null &&
+            widget.controller.homeLoading) {
+          return const _HomeLoading();
         }
         return SafeArea(
           bottom: false,
@@ -169,7 +174,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             for (final entry in widget.controller.recent.take(
                               4,
                             ))
-                              TransactionTile(entry: entry),
+                              TransactionTile(
+                                entry: entry,
+                                onTap: () => showLedgerReceipt(context, entry),
+                              ),
                           ],
                         ),
                 ),
@@ -185,6 +193,59 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _HomeLoading extends StatelessWidget {
+  const _HomeLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 26),
+        children: const [
+          Row(
+            children: [
+              SkeletonBox(height: 45, width: 45, radius: 99),
+              SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(height: 16, width: 150),
+                    SizedBox(height: 8),
+                    SkeletonBox(height: 11, width: 100),
+                  ],
+                ),
+              ),
+              SkeletonBox(height: 42, width: 42, radius: 99),
+            ],
+          ),
+          SizedBox(height: 20),
+          SkeletonCard(height: 188),
+          SizedBox(height: 12),
+          SkeletonBox(height: 15, width: 190),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: SkeletonCard(height: 82)),
+              SizedBox(width: 10),
+              Expanded(child: SkeletonCard(height: 82)),
+            ],
+          ),
+          SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: SkeletonCard(height: 82)),
+              SizedBox(width: 10),
+              Expanded(child: SkeletonCard(height: 82)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

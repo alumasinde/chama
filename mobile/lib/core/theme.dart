@@ -26,16 +26,17 @@ ThemeData buildChamaTheme() {
   final base = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: ChamaColors.purple,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: ChamaColors.purple,
-      secondary: ChamaColors.green,
-      surface: ChamaColors.surface,
-      onSurface: ChamaColors.ink,
-      error: ChamaColors.danger,
-    ),
+    colorScheme:
+        ColorScheme.fromSeed(
+          seedColor: ChamaColors.purple,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: ChamaColors.purple,
+          secondary: ChamaColors.green,
+          surface: ChamaColors.surface,
+          onSurface: ChamaColors.ink,
+          error: ChamaColors.danger,
+        ),
     scaffoldBackgroundColor: ChamaColors.canvas,
   );
 

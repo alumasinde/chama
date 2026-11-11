@@ -510,6 +510,81 @@ class ApiClient {
     return StkResult.fromJson(json);
   }
 
+  Future<PaymentSettings> paymentSettings(String groupId) async {
+    final json = await _json('GET', '/api/v1/groups/$groupId/payment-settings');
+    return PaymentSettings.fromJson(json);
+  }
+
+  Future<PaymentSettings> savePaymentSettings({
+    required String groupId,
+    required String shortcodeType,
+    required String shortcode,
+    required String environment,
+    required String accountReferenceTemplate,
+    String? consumerKey,
+    String? consumerSecret,
+    String? passkey,
+  }) async {
+    final json = await _json(
+      'PUT',
+      '/api/v1/groups/$groupId/payment-settings',
+      body: {
+        'shortcode_type': shortcodeType,
+        'shortcode': shortcode,
+        'daraja_environment': environment,
+        'account_reference_template': accountReferenceTemplate,
+        if (consumerKey != null && consumerKey.isNotEmpty)
+          'consumer_key': consumerKey,
+        if (consumerSecret != null && consumerSecret.isNotEmpty)
+          'consumer_secret': consumerSecret,
+        if (passkey != null && passkey.isNotEmpty) 'passkey': passkey,
+      },
+    );
+    return PaymentSettings.fromJson(json);
+  }
+
+  Future<PaymentSettings> verifyPaymentSettings(String groupId) async {
+    final json = await _json(
+      'POST',
+      '/api/v1/groups/$groupId/payment-settings/verify',
+    );
+    return PaymentSettings.fromJson(json);
+  }
+
+  Future<ManualContribution> recordManualContribution({
+    required String groupId,
+    required String memberId,
+    required String amount,
+    required String reference,
+    required String narration,
+    required String stepUpToken,
+  }) async {
+    final json = await _json(
+      'POST',
+      '/api/v1/groups/$groupId/payments/manual',
+      headers: {'X-Step-Up-Token': stepUpToken},
+      body: {
+        'member_id': memberId,
+        'amount': amount,
+        'reference': reference,
+        'narration': narration,
+      },
+    );
+    return ManualContribution.fromJson(json);
+  }
+
+  Future<TestCollection> sendTestCollection({
+    required String groupId,
+    required String stepUpToken,
+  }) async {
+    final json = await _json(
+      'POST',
+      '/api/v1/groups/$groupId/payments/test',
+      headers: {'X-Step-Up-Token': stepUpToken},
+    );
+    return TestCollection.fromJson(json);
+  }
+
   Future<void> logout() async {
     if (!hasSession) return;
     try {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
 import 'core/theme.dart';
+import 'screens/biometric_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/auth_screen.dart';
 import 'screens/splash_screen.dart';
@@ -45,6 +46,15 @@ class _ChamaAppState extends State<ChamaApp> {
         builder: (context, _) {
           if (_controller.booting) {
             return const SplashScreen();
+          }
+          if (_controller.biometricsLocked) {
+            return BiometricLockScreen(controller: _controller);
+          }
+          if (_controller.bootError != null) {
+            return StartupErrorScreen(
+              controller: _controller,
+              message: _controller.bootError!,
+            );
           }
           if (_controller.user == null) {
             return AuthScreen(controller: _controller);

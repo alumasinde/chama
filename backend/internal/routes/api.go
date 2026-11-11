@@ -78,7 +78,7 @@ func New(d Deps) http.Handler {
 			d.AuthHandler.ProtectedRoutes(r)
 			d.UsersHandler.Register(r)
 			d.GroupsHandler.Register(r)
-			d.PaymentsHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp)
+			d.PaymentsHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp, d.Groups.RequirePermission)
 			d.FinesHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp, d.Groups.RequirePermission)
 			d.LoansHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp, d.Groups.RequirePermission)
 			d.WelfareHandler.Register(r, d.Groups.GroupScope, d.Groups.RequireActive, d.Auth.RequireStepUp, d.Groups.RequirePermission)

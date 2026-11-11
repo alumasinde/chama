@@ -31,7 +31,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            error is ApiException ? error.message : 'Could not update notifications.',
+            error is ApiException
+                ? error.message
+                : 'Could not update notifications.',
           ),
         ),
       );
@@ -57,6 +59,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         listenable: widget.controller,
         builder: (context, _) {
           final items = widget.controller.notifications;
+          if (items.isEmpty && widget.controller.notificationsLoading) {
+            return const LoadingList();
+          }
+          if (items.isEmpty && widget.controller.notificationsError != null) {
+            return ErrorState(
+              message: widget.controller.notificationsError!,
+              onRetry: widget.controller.loadNotifications,
+            );
+          }
           if (items.isEmpty) {
             return const EmptyState(
               icon: Icons.notifications_none_rounded,

@@ -663,3 +663,19 @@ func (q *Queries) UpsertPaymentSettings(ctx context.Context, arg UpsertPaymentSe
 	)
 	return err
 }
+
+const markPaymentSettingsVerified = `-- name: MarkPaymentSettingsVerified :exec
+UPDATE group_payment_settings
+SET is_verified = TRUE, verified_at = now(), updated_by = $1
+WHERE group_id = $2
+`
+
+type MarkPaymentSettingsVerifiedParams struct {
+	UpdatedBy *int64
+	GroupID   int64
+}
+
+func (q *Queries) MarkPaymentSettingsVerified(ctx context.Context, arg MarkPaymentSettingsVerifiedParams) error {
+	_, err := q.db.Exec(ctx, markPaymentSettingsVerified, arg.UpdatedBy, arg.GroupID)
+	return err
+}

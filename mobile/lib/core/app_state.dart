@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'api.dart';
+import 'biometrics.dart';
 import 'models.dart';
 
 class GroupBundle {
@@ -24,9 +25,12 @@ class GroupBundle {
 }
 
 class AppController extends ChangeNotifier {
-  AppController({ApiClient? api}) : api = api ?? ApiClient();
+  AppController({ApiClient? api, BiometricService? biometrics})
+    : api = api ?? ApiClient(),
+      biometrics = biometrics ?? BiometricService();
 
   final ApiClient api;
+  final BiometricService biometrics;
   final Random _random = Random.secure();
 
   AppUser? user;
@@ -38,27 +42,127 @@ class AppController extends ChangeNotifier {
   int unread = 0;
   bool booting = true;
   bool homeLoading = false;
+  bool notificationsLoading = false;
   bool paymentBusy = false;
   String? homeError;
   String? workspaceError;
+  String? notificationsError;
+  String? bootError;
+  bool biometricsAvailable = false;
+  bool biometricsEnabled = false;
+  bool biometricsLocked = false;
+  bool biometricsBusy = false;
 
   Future<void> boot() async {
     booting = true;
+    bootError = null;
+    biometricsLocked = false;
     notifyListeners();
+    var restored = false;
     try {
-      final restored = await api.restoreSession();
+      biometricsAvailable = await biometrics.isAvailable();
+      biometricsEnabled = await biometrics.isEnabled();
+      restored = await api.restoreSession();
       if (restored) {
+        if (biometricsEnabled) {
+          if (biometricsAvailable) {
+            biometricsLocked = true;
+            return;
+          }
+          biometricsEnabled = false;
+          await biometrics.setEnabled(false);
+        }
         await _loadWorkspace();
+      } else if (biometricsEnabled) {
+        biometricsEnabled = false;
+        await biometrics.setEnabled(false);
       }
-    } catch (_) {
-      await api.clearSession();
-      user = null;
-      groups = [];
-      active = null;
+    } on ApiException catch (error) {
+      if (error.isUnauthorized) {
+        await _clearLocalSession(disableBiometrics: true);
+      } else if (restored) {
+        bootError = error.message;
+      }
+    } catch (error) {
+      if (restored) bootError = _message(error);
     } finally {
       booting = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _clearLocalSession({bool disableBiometrics = false}) async {
+    await api.clearSession();
+    user = null;
+    groups = [];
+    active = null;
+    dashboard = null;
+    recent = [];
+    notifications = [];
+    unread = 0;
+    homeError = null;
+    workspaceError = null;
+    notificationsError = null;
+    biometricsLocked = false;
+    if (disableBiometrics) {
+      biometricsEnabled = false;
+      await biometrics.setEnabled(false);
+    }
+  }
+
+  Future<bool> unlockWithBiometrics() async {
+    if (biometricsBusy) return false;
+    biometricsBusy = true;
+    notifyListeners();
+    try {
+      final authenticated = await biometrics.authenticate(
+        reason: 'Unlock your Chama account',
+      );
+      if (!authenticated) return false;
+      biometricsLocked = false;
+      bootError = null;
+      await _loadWorkspace();
+      return true;
+    } on ApiException catch (error) {
+      if (error.isUnauthorized) {
+        await _clearLocalSession(disableBiometrics: true);
+      } else {
+        bootError = error.message;
+      }
+      return false;
+    } catch (error) {
+      bootError = _message(error);
+      return false;
+    } finally {
+      biometricsBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> useOtpInstead() async {
+    await _clearLocalSession(disableBiometrics: true);
+    bootError = null;
+    notifyListeners();
+  }
+
+  Future<bool> enableBiometrics() async {
+    biometricsAvailable = await biometrics.isAvailable();
+    notifyListeners();
+    if (!biometricsAvailable) return false;
+    final authenticated = await biometrics.authenticate(
+      reason: 'Turn on fingerprint sign-in for Chama',
+    );
+    if (!authenticated) return false;
+    await biometrics.setEnabled(true);
+    biometricsEnabled = true;
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> disableBiometrics() async {
+    await biometrics.setEnabled(false);
+    biometricsEnabled = false;
+    notifyListeners();
   }
 
   Future<void> _loadWorkspace() async {
@@ -140,13 +244,18 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> loadNotifications() async {
+    notificationsLoading = true;
+    notificationsError = null;
+    notifyListeners();
     try {
       final feed = await api.notifications();
       notifications = feed.items;
       unread = feed.unread;
+    } catch (error) {
+      notificationsError = _message(error);
+    } finally {
+      notificationsLoading = false;
       notifyListeners();
-    } catch (_) {
-      // Notifications are secondary; the rest of the app remains usable.
     }
   }
 
@@ -300,6 +409,50 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<ManualContribution> recordManualContribution({
+    required Chama group,
+    required String pin,
+    required String memberId,
+    required String amount,
+    required String reference,
+    String narration = '',
+  }) async {
+    paymentBusy = true;
+    notifyListeners();
+    try {
+      final stepUp = await api.verifyPin(pin);
+      if (stepUp.isEmpty) {
+        throw const ApiException('Your PIN could not be verified.');
+      }
+      final result = await api.recordManualContribution(
+        groupId: group.id,
+        memberId: memberId,
+        amount: amount,
+        reference: reference,
+        narration: narration,
+        stepUpToken: stepUp,
+      );
+      if (active?.id == group.id) {
+        await refreshHome();
+      }
+      return result;
+    } finally {
+      paymentBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<TestCollection> sendTestCollection({
+    required Chama group,
+    required String pin,
+  }) async {
+    final stepUp = await api.verifyPin(pin);
+    if (stepUp.isEmpty) {
+      throw const ApiException('Your PIN could not be verified.');
+    }
+    return api.sendTestCollection(groupId: group.id, stepUpToken: stepUp);
+  }
+
   Future<Loan> applyLoan({
     required Chama group,
     required String pin,
@@ -378,6 +531,9 @@ class AppController extends ChangeNotifier {
 
   Future<void> logout() async {
     await api.logout();
+    await biometrics.setEnabled(false);
+    biometricsEnabled = false;
+    biometricsLocked = false;
     user = null;
     groups = [];
     active = null;
@@ -387,6 +543,8 @@ class AppController extends ChangeNotifier {
     unread = 0;
     homeError = null;
     workspaceError = null;
+    notificationsError = null;
+    bootError = null;
     notifyListeners();
   }
 

@@ -17,6 +17,11 @@ const defaultReferenceTemplate = "CHAMA-{member_short}-{period}"
 var validShortcodeTypes = map[string]bool{"paybill": true, "till": true}
 var validEnvironments = map[string]bool{"sandbox": true, "production": true}
 
+// CredentialVerifier is the narrow seam to the payment provider for setup checks.
+type CredentialVerifier interface {
+	VerifyCredentials(ctx context.Context, environment, consumerKey, consumerSecret string) error
+}
+
 func (s *Service) PaymentSettings(ctx context.Context, scope Scope) (PaymentSettingsView, error) {
 	settings, err := s.repo.PaymentSettings(ctx, scope.Group.ID)
 	if errors.Is(err, ErrNotFound) {
@@ -120,6 +125,41 @@ func (s *Service) PutPaymentSettings(ctx context.Context, scope Scope, actorID i
 		IsVerified:               false,
 		UpdatedAt:                time.Now().UTC(),
 	}
+	return s.paymentView(scope.Group.ID, settings, s.callbackURL(scope.Group, callbackSecret)), nil
+}
+
+// VerifyPaymentSettings proves the saved Daraja keys work and records the result.
+func (s *Service) VerifyPaymentSettings(ctx context.Context, scope Scope, actorID int64) (PaymentSettingsView, error) {
+	settings, err := s.repo.PaymentSettings(ctx, scope.Group.ID)
+	if errors.Is(err, ErrNotFound) {
+		return PaymentSettingsView{}, httpx.Unprocessable("payment_settings_missing",
+			"Save the chama's M-Pesa details first.")
+	}
+	if err != nil {
+		return PaymentSettingsView{}, err
+	}
+	if s.verifier == nil {
+		return PaymentSettingsView{}, httpx.NewError(503, "verification_unavailable",
+			"M-Pesa verification is not configured on this server.")
+	}
+	key := string(s.openSecret(settings.ConsumerKeyEnc, scope.Group.ID, "consumer_key"))
+	secret := string(s.openSecret(settings.ConsumerSecretEnc, scope.Group.ID, "consumer_secret"))
+	if key == "" || secret == "" {
+		return PaymentSettingsView{}, httpx.NewError(500, "credentials_unreadable",
+			"The saved M-Pesa keys could not be read. Save them again.")
+	}
+	if err := s.verifier.VerifyCredentials(ctx, settings.DarajaEnvironment, key, secret); err != nil {
+		s.log.WarnContext(ctx, "daraja verification failed", "group_id", scope.Group.ID, "error", err)
+		return PaymentSettingsView{}, httpx.Unprocessable("mpesa_verification_failed",
+			"Daraja rejected these keys. Check that the environment, consumer key and secret come from the same Daraja app.")
+	}
+	if err := s.repo.MarkPaymentSettingsVerified(ctx, scope.Group.ID, actorID); err != nil {
+		return PaymentSettingsView{}, err
+	}
+	verifiedAt := time.Now().UTC()
+	settings.IsVerified = true
+	settings.VerifiedAt = &verifiedAt
+	callbackSecret := string(s.openSecret(settings.CallbackSecretEnc, scope.Group.ID, "callback_secret"))
 	return s.paymentView(scope.Group.ID, settings, s.callbackURL(scope.Group, callbackSecret)), nil
 }
 

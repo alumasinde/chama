@@ -29,6 +29,7 @@ func (h *Handler) Register(r chi.Router) {
 				r.Group(func(r chi.Router) {
 					r.Use(h.svc.RequirePermission(rbac.PermPaymentSettingsWrite))
 					r.Put("/payment-settings", h.putPaymentSettings)
+					r.Post("/payment-settings/verify", h.verifyPaymentSettings)
 				})
 
 				r.Group(func(r chi.Router) {

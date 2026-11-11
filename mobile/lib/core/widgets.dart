@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'format.dart';
+import 'models.dart';
 import 'theme.dart';
 
 class BrandMark extends StatelessWidget {
@@ -38,7 +39,11 @@ class _BrandMarkPainter extends CustomPainter {
     final purple = Paint()..color = ChamaColors.purple;
     final light = Paint()..color = const Color(0xFF9B7BE0);
     final green = Paint()..color = ChamaColors.green;
-    _person(canvas, Rect.fromLTWH(w * 0.1, h * 0.25, w * 0.2, h * 0.57), purple);
+    _person(
+      canvas,
+      Rect.fromLTWH(w * 0.1, h * 0.25, w * 0.2, h * 0.57),
+      purple,
+    );
     _person(canvas, Rect.fromLTWH(w * 0.4, h * 0.08, w * 0.2, h * 0.7), light);
     _person(canvas, Rect.fromLTWH(w * 0.7, h * 0.28, w * 0.2, h * 0.55), green);
   }
@@ -277,12 +282,18 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (status) {
-      'active' || 'approved' || 'completed' || 'paid' || 'fully_paid' =>
-        (ChamaColors.greenSoft, ChamaColors.green),
-      'pending' || 'pending_guarantors' || 'pending_approval' =>
-        (ChamaColors.warningSoft, ChamaColors.warning),
-      'defaulted' || 'rejected' || 'failed' || 'suspended' =>
-        (const Color(0xFFFEE4E2), ChamaColors.danger),
+      'active' ||
+      'approved' ||
+      'completed' ||
+      'paid' ||
+      'fully_paid' => (ChamaColors.greenSoft, ChamaColors.green),
+      'pending' ||
+      'pending_guarantors' ||
+      'pending_approval' => (ChamaColors.warningSoft, ChamaColors.warning),
+      'defaulted' ||
+      'rejected' ||
+      'failed' ||
+      'suspended' => (const Color(0xFFFEE4E2), ChamaColors.danger),
       _ => (ChamaColors.soft, ChamaColors.purple),
     };
     return Container(
@@ -461,10 +472,7 @@ class EmptyState extends StatelessWidget {
                 ),
               ),
             ],
-            if (action != null) ...[
-              const SizedBox(height: 20),
-              action!,
-            ],
+            if (action != null) ...[const SizedBox(height: 20), action!],
           ],
         ),
       ),
@@ -547,15 +555,39 @@ class SkeletonCard extends StatelessWidget {
   }
 }
 
+class LoadingList extends StatelessWidget {
+  const LoadingList({
+    super.key,
+    this.padding = const EdgeInsets.fromLTRB(16, 8, 16, 28),
+    this.itemCount = 3,
+    this.itemHeight = 78,
+  });
+
+  final EdgeInsetsGeometry padding;
+  final int itemCount;
+  final double itemHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: padding,
+      itemCount: itemCount,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, _) => SkeletonCard(height: itemHeight),
+    );
+  }
+}
+
 class TransactionTile extends StatelessWidget {
   const TransactionTile({super.key, required this.entry, this.onTap});
 
-  final dynamic entry;
+  final LedgerEntry entry;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final isIn = isInflow(entry.type as String);
+    final isIn = isInflow(entry.type);
     final color = isIn ? ChamaColors.green : ChamaColors.ink;
     return InkWell(
       onTap: onTap,
@@ -583,7 +615,7 @@ class TransactionTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    transactionTitle(entry.type as String),
+                    transactionTitle(entry.type),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -594,7 +626,7 @@ class TransactionTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    entry.member as String? ?? '',
+                    entry.member,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -610,7 +642,7 @@ class TransactionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  transactionSignedAmount(entry.type as String, entry.amount as String),
+                  transactionSignedAmount(entry.type, entry.amount),
                   style: TextStyle(
                     color: color,
                     fontSize: 13.5,
@@ -620,7 +652,7 @@ class TransactionTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  relativeTime(entry.createdAt as String),
+                  relativeTime(entry.createdAt),
                   style: const TextStyle(
                     color: ChamaColors.muted,
                     fontSize: 10.5,
@@ -691,7 +723,11 @@ class CircleIconButton extends StatelessWidget {
 }
 
 class Stagger extends StatefulWidget {
-  const Stagger({super.key, required this.child, this.duration = const Duration(milliseconds: 420)});
+  const Stagger({
+    super.key,
+    required this.child,
+    this.duration = const Duration(milliseconds: 420),
+  });
 
   final Widget child;
   final Duration duration;
@@ -796,7 +832,8 @@ class _SparkPainter extends CustomPainter {
     final path = Path();
     for (var i = 0; i < values.length; i++) {
       final x = size.width * i / (values.length - 1);
-      final y = size.height -
+      final y =
+          size.height -
           ((values[i] - minValue) / spread) * (size.height - 5) -
           2.5;
       if (i == 0) {

@@ -121,3 +121,27 @@ WHERE user_id = sqlc.arg(user_id) AND key = sqlc.arg(key);
 
 -- name: DeleteIdempotency :exec
 DELETE FROM idempotency_keys WHERE user_id = sqlc.arg(user_id) AND key = sqlc.arg(key);
+
+-- name: RecordManualContribution :one
+-- The join on an active membership means a non-member or exited member writes no row.
+INSERT INTO transactions (
+    group_id, user_id, transaction_type_id, status_id, channel_id,
+    amount, reference_code, narration, recorded_by, completed_at
+)
+SELECT
+    sqlc.arg(group_id),
+    gm.user_id,
+    (SELECT t.id FROM transaction_types t WHERE t.code = 'contribution'),
+    (SELECT s.id FROM transaction_statuses s WHERE s.code = 'completed'),
+    (SELECT c.id FROM payment_channels c WHERE c.code = sqlc.arg(channel)),
+    (sqlc.arg(amount_cents)::bigint / 100.0)::numeric(15,2),
+    sqlc.arg(reference_code),
+    sqlc.arg(narration),
+    sqlc.arg(recorded_by),
+    now()
+FROM group_members gm
+JOIN member_statuses ms ON ms.id = gm.status_id
+WHERE gm.group_id = sqlc.arg(group_id)
+  AND gm.user_id = (SELECT u.id FROM users u WHERE u.public_id = sqlc.arg(member_public_id))
+  AND ms.code = 'active'
+RETURNING id, public_id, user_id, reference_code, narration, created_at, completed_at;
